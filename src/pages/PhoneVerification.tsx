@@ -196,19 +196,21 @@ const PhoneVerification = () => {
                   </div>
                   
                   <div className="space-y-4">
+                    <Label htmlFor="otp-input" className="text-center block">Enter verification code</Label>
                     <div className="flex justify-center py-4">
                       <InputOTP
+                        id="otp-input"
                         maxLength={6}
                         value={otp}
                         onChange={setOtp}
-                        render={({ slots }) => (
-                          <InputOTPGroup>
-                            {slots.map((slot, i) => (
-                              <InputOTPSlot key={i} index={i} />
-                            ))}
-                          </InputOTPGroup>
-                        )}
-                      />
+                        className="gap-2"
+                      >
+                        <InputOTPGroup>
+                          {Array.from({ length: 6 }).map((_, i) => (
+                            <InputOTPSlot key={i} index={i} />
+                          ))}
+                        </InputOTPGroup>
+                      </InputOTP>
                     </div>
                     
                     <div className="text-center">
