@@ -18,12 +18,15 @@ import {
   Clock, 
   Calendar 
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import BookingConfirmation from "@/components/BookingConfirmation";
 
 const Book = () => {
+  const { userPhone } = useAuth();
+  
   const [formData, setFormData] = useState({
     name: "",
-    phone: "",
+    phone: userPhone || "",
     location: "",
     service: "",
     date: "",
@@ -85,11 +88,14 @@ const Book = () => {
                         placeholder="Enter your phone number"
                         value={formData.phone}
                         onChange={(e) => handleChange("phone", e.target.value)}
+                        disabled={!!userPhone} // Disable if we have a verified phone
                         required
                       />
-                      <p className="text-sm text-gray-500">
-                        We'll send a verification code to this number
-                      </p>
+                      {userPhone && (
+                        <p className="text-sm text-gray-500">
+                          This phone number has been verified
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
