@@ -11,7 +11,7 @@ import {
   InputOTPSlot 
 } from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
-import { Phone, Send, ArrowRight, Shield } from "lucide-react";
+import { Phone, Send, ArrowRight, Shield, Copy } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const PhoneVerification = () => {
@@ -22,10 +22,16 @@ const PhoneVerification = () => {
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
+  const [generatedOtp, setGeneratedOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   // Get the return URL from location state or default to book page
   const returnUrl = location.state?.returnUrl || "/book";
+
+  const generateRandomOtp = () => {
+    // Generate a random 6-digit number
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  };
 
   const handlePhoneSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +48,10 @@ const PhoneVerification = () => {
 
     setIsLoading(true);
 
-    // In a real app, you would call an API to send OTP
+    // Generate a random OTP
+    const newOtp = generateRandomOtp();
+    setGeneratedOtp(newOtp);
+
     // Simulate API call with timeout
     setTimeout(() => {
       setIsLoading(false);
@@ -53,6 +62,14 @@ const PhoneVerification = () => {
         description: `A 6-digit code has been sent to ${phoneNumber}`,
       });
     }, 1500);
+  };
+
+  const copyOtpToClipboard = () => {
+    navigator.clipboard.writeText(generatedOtp);
+    toast({
+      title: "OTP copied",
+      description: "OTP has been copied to clipboard",
+    });
   };
 
   const handleOtpSubmit = (e: React.FormEvent) => {
@@ -69,27 +86,36 @@ const PhoneVerification = () => {
 
     setIsLoading(true);
 
-    // In a real app, you would verify the OTP with an API
-    // Simulate API call with timeout
+    // Verify if entered OTP matches generated OTP
     setTimeout(() => {
       setIsLoading(false);
       
-      // For demo purposes, any 6-digit OTP is valid
-      // In production, this would verify against the actual OTP
-      toast({
-        title: "Verification successful",
-        description: "Your phone number has been verified.",
-      });
+      if (otp === generatedOtp) {
+        toast({
+          title: "Verification successful",
+          description: "Your phone number has been verified.",
+        });
 
-      // Call the login function from AuthContext
-      login(phoneNumber);
-      
-      // Navigate to the original destination
-      navigate(returnUrl);
+        // Call the login function from AuthContext
+        login(phoneNumber);
+        
+        // Navigate to the original destination
+        navigate(returnUrl);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Invalid code",
+          description: "The verification code you entered is incorrect.",
+        });
+      }
     }, 1500);
   };
 
   const resendOtp = () => {
+    // Generate a new OTP
+    const newOtp = generateRandomOtp();
+    setGeneratedOtp(newOtp);
+    
     toast({
       title: "Code resent",
       description: `A new verification code has been sent to ${phoneNumber}`,
@@ -151,6 +177,24 @@ const PhoneVerification = () => {
                 </form>
               ) : (
                 <form onSubmit={handleOtpSubmit} className="space-y-4">
+                  {/* For demo purposes only - show the OTP */}
+                  <div className="bg-amber-50 p-3 rounded-md border border-amber-200 mb-4">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h4 className="text-sm font-medium text-amber-800">Demo Mode: Your OTP is</h4>
+                        <p className="text-amber-900 font-mono text-xl">{generatedOtp}</p>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={copyOtpToClipboard}
+                        className="text-amber-800 border-amber-300"
+                      >
+                        <Copy className="h-4 w-4 mr-1" /> Copy
+                      </Button>
+                    </div>
+                  </div>
+                  
                   <div className="space-y-4">
                     <div className="flex justify-center py-4">
                       <InputOTP
