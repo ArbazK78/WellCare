@@ -11,7 +11,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [userPhone, setUserPhone] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,8 +39,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUserPhone(null);
   };
 
+  const value = {
+    isAuthenticated,
+    userPhone,
+    login,
+    logout
+  };
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, userPhone, login, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

@@ -12,11 +12,13 @@ import {
 } from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
 import { Phone, Send, ArrowRight, Shield } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const PhoneVerification = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { login } = useAuth();
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
@@ -79,9 +81,8 @@ const PhoneVerification = () => {
         description: "Your phone number has been verified.",
       });
 
-      // Save auth state (in a real app this would be a JWT token or session)
-      localStorage.setItem("isAuthenticated", "true");
-      localStorage.setItem("userPhone", phoneNumber);
+      // Call the login function from AuthContext
+      login(phoneNumber);
       
       // Navigate to the original destination
       navigate(returnUrl);
@@ -158,8 +159,8 @@ const PhoneVerification = () => {
                         onChange={setOtp}
                         render={({ slots }) => (
                           <InputOTPGroup>
-                            {slots.map((slot, index) => (
-                              <InputOTPSlot key={index} {...slot} />
+                            {slots.map((slot, i) => (
+                              <InputOTPSlot key={i} index={i} />
                             ))}
                           </InputOTPGroup>
                         )}
