@@ -13,6 +13,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Phone, Send, ArrowRight, Shield, Copy } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import Navbar from "@/components/Navbar";
 
 const PhoneVerification = () => {
   const navigate = useNavigate();
@@ -123,8 +124,9 @@ const PhoneVerification = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white py-12">
-      <div className="container mx-auto px-4">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <Navbar />
+      <div className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto">
           <Card>
             <CardHeader>

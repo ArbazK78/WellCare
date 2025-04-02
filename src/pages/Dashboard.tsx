@@ -4,62 +4,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CheckCircle2, Clock, MapPin, Calendar, User } from "lucide-react";
 import { Link } from "react-router-dom";
-
-// Sample booking data
-const bookings = [
-  {
-    id: "B1001",
-    status: "upcoming",
-    service: "Navigation Assistance",
-    guide: {
-      id: 2,
-      name: "Priya Sharma",
-      image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&h=300&fit=crop&auto=format&q=80",
-      rating: 4.9
-    },
-    date: "2023-06-15",
-    time: "10:00 AM",
-    location: "AIIMS Hospital, New Delhi",
-    waitingHours: 2
-  },
-  {
-    id: "B1002",
-    status: "completed",
-    service: "Heavy Lifting",
-    guide: {
-      id: 1,
-      name: "Rajesh Kumar",
-      image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop&auto=format&q=80",
-      rating: 4.8
-    },
-    date: "2023-06-10",
-    time: "02:30 PM",
-    location: "DLF Mall, Gurgaon",
-    waitingHours: 0
-  },
-  {
-    id: "B1003",
-    status: "completed",
-    service: "Transport Assistance",
-    guide: {
-      id: 3,
-      name: "Amit Patel",
-      image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&h=300&fit=crop&auto=format&q=80",
-      rating: 4.7
-    },
-    date: "2023-06-05",
-    time: "09:00 AM",
-    location: "Fortis Hospital, Noida",
-    waitingHours: 1
-  }
-];
+import { useBookings } from "@/contexts/BookingContext";
+import { useAuth } from "@/contexts/AuthContext";
+import Navbar from "@/components/Navbar";
 
 const Dashboard = () => {
+  const { bookings, completeBooking, cancelBooking } = useBookings();
+  const { userPhone } = useAuth();
+  
   const upcomingBookings = bookings.filter(booking => booking.status === "upcoming");
   const completedBookings = bookings.filter(booking => booking.status === "completed");
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <Navbar />
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8">
@@ -129,10 +87,10 @@ const Dashboard = () => {
                               
                               <div className="md:w-1/4 mt-4 md:mt-0 flex md:justify-end items-center">
                                 <div className="space-y-2">
-                                  <Button variant="outline" size="sm" className="w-full">
-                                    View Details
+                                  <Button variant="outline" size="sm" className="w-full" onClick={() => completeBooking(booking.id)}>
+                                    Mark as Complete
                                   </Button>
-                                  <Button variant="outline" size="sm" className="w-full text-red-500 hover:text-red-600">
+                                  <Button variant="outline" size="sm" className="w-full text-red-500 hover:text-red-600" onClick={() => cancelBooking(booking.id)}>
                                     Cancel
                                   </Button>
                                 </div>
@@ -206,8 +164,8 @@ const Dashboard = () => {
                               </div>
                               
                               <div className="md:w-1/4 mt-4 md:mt-0 flex md:justify-end items-center">
-                                <Button variant="outline" size="sm">
-                                  Book Again
+                                <Button variant="outline" size="sm" asChild>
+                                  <Link to="/book">Book Again</Link>
                                 </Button>
                               </div>
                             </div>
@@ -237,8 +195,8 @@ const Dashboard = () => {
                       <User className="h-10 w-10 text-blue-600" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-medium">Rahul Singh</h3>
-                      <p className="text-gray-500">Member since June 2023</p>
+                      <h3 className="text-xl font-medium">Your Profile</h3>
+                      <p className="text-gray-500">Member since {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
                     </div>
                   </div>
 
@@ -248,11 +206,11 @@ const Dashboard = () => {
                       <div className="mt-2 space-y-2">
                         <div className="flex justify-between">
                           <span>Phone</span>
-                          <span>+91 98765 43210</span>
+                          <span>{userPhone || "Not provided"}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Email</span>
-                          <span>rahul.singh@example.com</span>
+                          <span>Not provided</span>
                         </div>
                       </div>
                     </div>
@@ -262,11 +220,11 @@ const Dashboard = () => {
                       <div className="mt-2 space-y-2">
                         <div className="flex justify-between">
                           <span>Home</span>
-                          <span>123 Green Park, New Delhi</span>
+                          <span>Not provided</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Work</span>
-                          <span>456 Cyber City, Gurgaon</span>
+                          <span>Not provided</span>
                         </div>
                       </div>
                     </div>
