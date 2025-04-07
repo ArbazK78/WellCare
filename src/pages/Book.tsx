@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,17 +15,21 @@ import {
   MapPin, 
   PhoneCall, 
   Clock, 
-  Calendar 
+  Calendar,
+  User,
+  Mail 
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import BookingConfirmation from "@/components/BookingConfirmation";
+import Navbar from "@/components/Navbar";
 
 const Book = () => {
-  const { userPhone } = useAuth();
+  const { userPhone, userName, userEmail } = useAuth();
   
   const [formData, setFormData] = useState({
     name: "",
     phone: userPhone || "",
+    email: userEmail || "",
     location: "",
     service: "",
     date: "",
@@ -34,6 +37,15 @@ const Book = () => {
     waitingRequired: false,
     waitingHours: 1,
   });
+
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      name: userName || prev.name,
+      phone: userPhone || prev.phone,
+      email: userEmail || prev.email
+    }));
+  }, [userName, userPhone, userEmail]);
 
   const [step, setStep] = useState(1);
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
@@ -53,8 +65,9 @@ const Book = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white py-12">
-      <div className="container mx-auto px-4">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <Navbar />
+      <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto">
           <h1 className="text-3xl font-bold text-center mb-8">Book a Guide</h1>
 
@@ -69,14 +82,22 @@ const Book = () => {
                 {step === 1 ? (
                   <div className="space-y-6">
                     <div className="space-y-2">
-                      <Label htmlFor="name">Full Name</Label>
+                      <Label htmlFor="name" className="flex items-center gap-2">
+                        <User className="h-4 w-4" /> Full Name
+                      </Label>
                       <Input
                         id="name"
                         placeholder="Enter your full name"
                         value={formData.name}
                         onChange={(e) => handleChange("name", e.target.value)}
+                        disabled={!!userName} // Disable if we have a name
                         required
                       />
+                      {userName && (
+                        <p className="text-sm text-gray-500">
+                          Using name from your profile
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -94,6 +115,25 @@ const Book = () => {
                       {userPhone && (
                         <p className="text-sm text-gray-500">
                           This phone number has been verified
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="flex items-center gap-2">
+                        <Mail className="h-4 w-4" /> Email Address
+                      </Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="Enter your email address"
+                        value={formData.email}
+                        onChange={(e) => handleChange("email", e.target.value)}
+                        disabled={!!userEmail} // Disable if we have an email
+                      />
+                      {userEmail && (
+                        <p className="text-sm text-gray-500">
+                          Using email from your profile
                         </p>
                       )}
                     </div>

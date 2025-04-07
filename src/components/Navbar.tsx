@@ -74,9 +74,9 @@ const Navbar = () => {
             <span className="text-xs mt-1">Book</span>
           </Link>
           
-          <Link to="/guides" className="flex flex-col items-center p-2">
+          <Link to="/dashboard" className="flex flex-col items-center p-2">
             <Users className="h-5 w-5" />
-            <span className="text-xs mt-1">Guides</span>
+            <span className="text-xs mt-1">Dashboard</span>
           </Link>
           
           <Link to="/about" className="flex flex-col items-center p-2">

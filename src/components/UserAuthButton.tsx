@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const UserAuthButton = () => {
-  const { isAuthenticated, userPhone, logout } = useAuth();
+  const { isAuthenticated, userPhone, userName, logout } = useAuth();
   const navigate = useNavigate();
 
   if (!isAuthenticated) {
@@ -27,18 +27,26 @@ const UserAuthButton = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon">
+        <Button variant="outline" className="flex items-center gap-2">
           <User className="h-4 w-4" />
+          <span className="hidden sm:inline-block">
+            {userName || "Account"}
+          </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel>My Account</DropdownMenuLabel>
+        <DropdownMenuLabel>
+          {userName ? `Hi, ${userName.split(' ')[0]}` : 'My Account'}
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled>
           {userPhone}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => navigate("/dashboard")}>
-          My Bookings
+          My Dashboard
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate("/book")}>
+          Book a Guide
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
