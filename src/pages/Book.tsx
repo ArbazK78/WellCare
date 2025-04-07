@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,9 +23,11 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import BookingConfirmation from "@/components/BookingConfirmation";
 import Navbar from "@/components/Navbar";
+import { useBookings, getRandomGuide, BookingService } from "@/contexts/BookingContext";
 
 const Book = () => {
   const { userPhone, userName, userEmail } = useAuth();
+  const { addBooking } = useBookings();
   
   const [formData, setFormData] = useState({
     name: "",
@@ -38,6 +41,9 @@ const Book = () => {
     waitingHours: 1,
   });
 
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [bookingConfirmed, setBookingConfirmed] = useState(false);
+
   useEffect(() => {
     setFormData(prev => ({
       ...prev,
@@ -48,7 +54,6 @@ const Book = () => {
   }, [userName, userPhone, userEmail]);
 
   const [step, setStep] = useState(1);
-  const [bookingConfirmed, setBookingConfirmed] = useState(false);
 
   const handleChange = (field: string, value: string | boolean | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -56,11 +61,39 @@ const Book = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, this would send the data to the backend
+    
+    // Map service values to proper BookingService type
+    let bookingService: BookingService;
+    switch (formData.service) {
+      case "navigation":
+        bookingService = "Navigation Assistance";
+        break;
+      case "heavy-lifting":
+        bookingService = "Heavy Lifting";
+        break;
+      case "transport":
+        bookingService = "Transport Assistance";
+        break;
+      default:
+        bookingService = "Navigation Assistance";
+    }
+
+    // Add booking to context
+    const guide = getRandomGuide();
+    const newBookingId = addBooking({
+      service: bookingService,
+      guide: guide,
+      date: formData.date,
+      time: formData.time,
+      location: formData.location,
+      waitingHours: formData.waitingRequired ? formData.waitingHours : 0
+    });
+    
+    setBookingId(newBookingId);
     setBookingConfirmed(true);
   };
 
-  if (bookingConfirmed) {
+  if (bookingConfirmed && bookingId) {
     return <BookingConfirmation booking={formData} />;
   }
 

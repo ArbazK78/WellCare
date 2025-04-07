@@ -23,7 +23,7 @@ export type Booking = {
 
 interface BookingContextType {
   bookings: Booking[];
-  addBooking: (booking: Omit<Booking, "id" | "status">) => void;
+  addBooking: (booking: Omit<Booking, "id" | "status">) => string;
   completeBooking: (id: string) => void;
   cancelBooking: (id: string) => void;
 }
