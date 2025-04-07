@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "react-router-dom";
-import { ArrowRight, Clock, MapPin, ShieldCheck, Weight } from "lucide-react";
+import { ArrowRight, Clock, MapPin, ShieldCheck, Weight, UserPlus, Check } from "lucide-react";
 
 const Index = () => {
   return (
@@ -21,7 +21,7 @@ const Index = () => {
               <Link to="/book">Book a Guide <ArrowRight className="ml-2" /></Link>
             </Button>
             <Button variant="outline" size="lg" asChild>
-              <Link to="/about">Learn More</Link>
+              <Link to="/guide/register">Become a Guide</Link>
             </Button>
           </div>
         </div>
@@ -66,6 +66,47 @@ const Index = () => {
               </p>
             </CardContent>
           </Card>
+        </div>
+      </section>
+
+      {/* Become a Guide Section */}
+      <section className="bg-blue-600 text-white py-16">
+        <div className="container mx-auto px-4">
+          <div className="max-w-3xl mx-auto text-center">
+            <h2 className="text-3xl font-bold mb-6">Join Our Guide Network</h2>
+            <p className="text-xl mb-8">
+              Earn money by helping others navigate through their daily journeys. Flexible hours, rewarding experiences, and competitive pay.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mb-4">
+                  <UserPlus className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-medium mb-2">Register</h3>
+                <p className="text-blue-100 text-center">Create your guide profile with your skills and availability</p>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mb-4">
+                  <ShieldCheck className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-medium mb-2">Get Verified</h3>
+                <p className="text-blue-100 text-center">Complete our verification process for trustworthiness</p>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mb-4">
+                  <Check className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-medium mb-2">Start Helping</h3>
+                <p className="text-blue-100 text-center">Accept booking requests and start earning</p>
+              </div>
+            </div>
+            <Button size="lg" variant="secondary" asChild>
+              <Link to="/guide/register">
+                <UserPlus className="mr-2 h-5 w-5" />
+                Become a Guide Now
+              </Link>
+            </Button>
+          </div>
         </div>
       </section>
 
