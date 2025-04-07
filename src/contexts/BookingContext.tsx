@@ -19,6 +19,9 @@ export type Booking = {
   time: string;
   location: string;
   waitingHours: number;
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
 };
 
 interface BookingContextType {

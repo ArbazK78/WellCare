@@ -1,11 +1,15 @@
 
 import { Link } from "react-router-dom";
-import { Home, BookOpen, Info, Users } from "lucide-react";
+import { Home, BookOpen, Info, Users, UserPlus } from "lucide-react";
 import UserAuthButton from "./UserAuthButton";
 import { NavigationMenu, NavigationMenuContent, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, navigationMenuTriggerStyle } from "@/components/ui/navigation-menu";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useGuideAuth } from "@/contexts/GuideAuthContext";
 
 const Navbar = () => {
+  const { isAuthenticated: isGuideAuthenticated } = useGuideAuth();
+
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
@@ -57,6 +61,18 @@ const Navbar = () => {
         </div>
         
         <div className="flex items-center gap-4">
+          {isGuideAuthenticated ? (
+            <Button variant="outline" asChild>
+              <Link to="/guide/dashboard">Guide Dashboard</Link>
+            </Button>
+          ) : (
+            <Button variant="outline" asChild>
+              <Link to="/guide/register">
+                <UserPlus className="mr-2 h-4 w-4" />
+                Become a Guide
+              </Link>
+            </Button>
+          )}
           <UserAuthButton />
         </div>
       </div>
