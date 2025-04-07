@@ -19,6 +19,7 @@ import PhoneVerification from "./pages/PhoneVerification";
 import GuideRegister from "./pages/guide/GuideRegister";
 import GuideLogin from "./pages/guide/GuideLogin";
 import GuideDashboard from "./pages/guide/GuideDashboard";
+import GuideEditProfile from "./pages/guide/GuideEditProfile";
 import GuidePendingApproval from "./pages/guide/GuidePendingApproval";
 import GuideRejected from "./pages/guide/GuideRejected";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -56,6 +57,11 @@ const App = () => (
                 <Route path="/guide/dashboard" element={
                   <GuideProtectedRoute>
                     <GuideDashboard />
+                  </GuideProtectedRoute>
+                } />
+                <Route path="/guide/edit-profile" element={
+                  <GuideProtectedRoute>
+                    <GuideEditProfile />
                   </GuideProtectedRoute>
                 } />
                 <Route path="/guide/pending-approval" element={<GuidePendingApproval />} />

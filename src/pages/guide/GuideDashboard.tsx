@@ -10,12 +10,22 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Calendar, Clock, MapPin, User, Star, X, Check } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import { useNavigate } from "react-router-dom";
 
 const GuideDashboard = () => {
   const { currentGuide } = useGuideAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Get initials from name for avatar
+  const getInitials = (name: string) => {
+    if (!name) return "";
+    const names = name.split(' ');
+    if (names.length === 1) return names[0].charAt(0);
+    return `${names[0].charAt(0)}${names[names.length - 1].charAt(0)}`;
+  };
 
   useEffect(() => {
     // Load bookings from localStorage
@@ -24,10 +34,16 @@ const GuideDashboard = () => {
     // Filter bookings for the current guide - ensuring proper type comparison
     // Convert guide.id to string for comparison since IDs in BookingContext are strings
     const guideBookings = storedBookings.filter(
-      (booking: Booking) => booking.guide.id.toString() === currentGuide?.id
+      (booking: any) => booking.guide?.id && booking.guide.id.toString() === currentGuide?.id
     );
     
-    setBookings(guideBookings);
+    // Ensure bookings have the correct status type
+    const typedBookings = guideBookings.map((booking: any) => ({
+      ...booking,
+      status: booking.status as "upcoming" | "completed"
+    }));
+    
+    setBookings(typedBookings);
     setLoading(false);
   }, [currentGuide]);
 
@@ -179,7 +195,7 @@ const GuideDashboard = () => {
                 <div className="flex items-center space-x-4">
                   <Avatar className="w-16 h-16">
                     <AvatarImage src={currentGuide.image} alt={currentGuide.name} />
-                    <AvatarFallback>{currentGuide.name?.charAt(0)}</AvatarFallback>
+                    <AvatarFallback>{getInitials(currentGuide.name)}</AvatarFallback>
                   </Avatar>
                   <div>
                     <CardTitle className="text-2xl">{currentGuide.name}</CardTitle>
@@ -189,7 +205,11 @@ const GuideDashboard = () => {
                     </CardDescription>
                   </div>
                 </div>
-                <Button variant="outline" size="sm">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => navigate('/guide/edit-profile')}
+                >
                   Edit Profile
                 </Button>
               </div>

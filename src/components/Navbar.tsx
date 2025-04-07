@@ -15,12 +15,98 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LogOut } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const Navbar = () => {
   const { isAuthenticated: isGuideAuthenticated, currentGuide, guideLogout } = useGuideAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Check if we're in the guide section
+  const isGuidePage = location.pathname.startsWith('/guide/');
+  
+  // Check if we're in the admin section
+  const isAdminPage = location.pathname.startsWith('/admin/');
 
+  // If admin page, only show logo and logout button
+  if (isAdminPage) {
+    return (
+      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-16 items-center justify-between">
+          <Link to="/" className="font-bold text-xl flex items-center">
+            <BookOpen className="mr-2 h-5 w-5" />
+            <span>GuideMate</span>
+          </Link>
+          
+          <Button 
+            variant="outline" 
+            className="flex items-center gap-2"
+            onClick={() => {
+              // Implement admin logout here when needed
+              navigate("/admin");
+            }}
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Logout</span>
+          </Button>
+        </div>
+      </header>
+    );
+  }
+
+  // If guide page, show simplified navbar for guides
+  if (isGuidePage && isGuideAuthenticated) {
+    return (
+      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-16 items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Link to="/" className="font-bold text-xl flex items-center">
+              <BookOpen className="mr-2 h-5 w-5" />
+              <span>GuideMate</span>
+            </Link>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span className="hidden sm:inline-block">
+                    {currentGuide?.name || "Guide Account"}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>
+                  {currentGuide?.name ? `Hi, ${currentGuide.name.split(' ')[0]}` : 'Guide Account'}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate("/guide/dashboard")}>
+                  Guide Dashboard
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/guide/edit-profile")}>
+                  Edit Profile
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    guideLogout();
+                    navigate("/");
+                  }}
+                  className="text-red-500"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Log out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
+  // Regular navbar for other pages
   return (
     <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
@@ -89,6 +175,9 @@ const Navbar = () => {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate("/guide/dashboard")}>
                   Guide Dashboard
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/guide/edit-profile")}>
+                  Edit Profile
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
