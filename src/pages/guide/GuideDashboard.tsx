@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Calendar, Clock, MapPin, User, Star, X, Check, AlertTriangle } from "lucide-react";
+import { Calendar, Clock, MapPin, User, Star, X, Check } from "lucide-react";
 import Navbar from "@/components/Navbar";
 
 const GuideDashboard = () => {
@@ -21,9 +21,10 @@ const GuideDashboard = () => {
     // Load bookings from localStorage
     const storedBookings = JSON.parse(localStorage.getItem("bookings") || "[]");
     
-    // Filter bookings for the current guide
+    // Filter bookings for the current guide - ensuring proper type comparison
+    // Convert guide.id to string for comparison since IDs in BookingContext are strings
     const guideBookings = storedBookings.filter(
-      (booking: Booking) => booking.guide.id === currentGuide?.id
+      (booking: Booking) => booking.guide.id.toString() === currentGuide?.id
     );
     
     setBookings(guideBookings);
@@ -55,13 +56,13 @@ const GuideDashboard = () => {
   const handleCompleteBooking = (bookingId: string) => {
     // Update the booking status in localStorage
     const updatedBookings = bookings.map(booking => 
-      booking.id === bookingId ? { ...booking, status: "completed" } : booking
+      booking.id === bookingId ? { ...booking, status: "completed" as const } : booking
     );
     
     // Save all bookings back to localStorage
     const allStoredBookings = JSON.parse(localStorage.getItem("bookings") || "[]");
     const updatedAllBookings = allStoredBookings.map((booking: Booking) =>
-      booking.id === bookingId ? { ...booking, status: "completed" } : booking
+      booking.id === bookingId ? { ...booking, status: "completed" as const } : booking
     );
     
     localStorage.setItem("bookings", JSON.stringify(updatedAllBookings));
