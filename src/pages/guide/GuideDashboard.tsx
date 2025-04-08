@@ -37,17 +37,14 @@ const GuideDashboard = () => {
       (booking: any) => booking.guide?.id && booking.guide.id.toString() === currentGuide?.id
     );
     
-    // Ensure bookings have the correct status type
-    const typedBookings = guideBookings.map((booking: any) => ({
-      ...booking,
-      status: booking.status as "upcoming" | "completed"
-    }));
-    
-    setBookings(typedBookings);
+    setBookings(guideBookings);
     setLoading(false);
   }, [currentGuide]);
 
-  const upcomingBookings = bookings.filter(booking => booking.status === "upcoming");
+  // Filter bookings by status - pending and accepted are considered upcoming
+  const upcomingBookings = bookings.filter(booking => 
+    booking.status === "pending" || booking.status === "accepted"
+  );
   const completedBookings = bookings.filter(booking => booking.status === "completed");
 
   const handleAcceptBooking = (bookingId: string) => {
@@ -122,8 +119,8 @@ const GuideDashboard = () => {
           <div className="flex items-center">
             <User className="h-4 w-4 mr-2 text-gray-500" />
             <span className="font-medium">Customer Details:</span> 
-            <span className="ml-2">{booking.customerName || "Not provided"}</span>
-            <span className="ml-2">{booking.customerPhone || "No phone"}</span>
+            <span className="ml-2">{booking.customer.name || "Not provided"}</span>
+            <span className="ml-2">{booking.customer.phone || "No phone"}</span>
           </div>
           
           <div className="flex items-start">

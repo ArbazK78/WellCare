@@ -16,7 +16,9 @@ const Dashboard = () => {
   const { userPhone, userName, userEmail, updateProfile } = useAuth();
   const { toast } = useToast();
   
-  const upcomingBookings = bookings.filter(booking => booking.status === "upcoming");
+  const upcomingBookings = bookings.filter(booking => 
+    booking.status === "pending" || booking.status === "accepted"
+  );
   const completedBookings = bookings.filter(booking => booking.status === "completed");
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);

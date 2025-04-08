@@ -27,6 +27,7 @@ export type Booking = {
   time: string;
   location: string;
   waitingHours: number;
+  rejectionReason?: string;
 };
 
 interface BookingContextType {
