@@ -4,9 +4,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Link } from "react-router-dom";
 import { Star, Clock, MapPin } from "lucide-react";
+import { useEffect, useRef } from "react";
+
+// Import guide context to get registered guides
+import { useGuideAuth } from "@/contexts/GuideAuthContext";
 
 // Sample guide data
-const guides = [
+const dummyGuides = [
   {
     id: 1,
     name: "Rajesh Kumar",
@@ -50,10 +54,38 @@ const guides = [
 ];
 
 const Guides = () => {
+  const { getAllApprovedGuides } = useGuideAuth();
+  const pageTopRef = useRef<HTMLDivElement>(null);
+  
+  // Get approved guides from context
+  const approvedGuides = getAllApprovedGuides();
+  
+  // Combine dummy guides with approved registered guides
+  const allGuides = [
+    ...dummyGuides,
+    ...approvedGuides.map(guide => ({
+      id: guide.id,
+      name: guide.name,
+      image: guide.image || "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&h=300&fit=crop&auto=format&q=80", // Default image if none provided
+      rating: guide.rating || 5.0,
+      yearsExperience: guide.experience ? parseInt(guide.experience) : 1,
+      location: "Delhi NCR", // Default location if none provided
+      specialties: guide.specialties || ["Navigation Assistance"],
+      bio: guide.bio || "Experienced guide ready to assist you with your needs."
+    }))
+  ];
+  
+  // Scroll to top when component mounts
+  useEffect(() => {
+    if (pageTopRef.current) {
+      pageTopRef.current.scrollIntoView({ behavior: "auto" });
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      {/* Header */}
-      <div className="bg-blue-100 py-16">
+      {/* Header - Add ref for scrolling */}
+      <div ref={pageTopRef} className="bg-blue-100 py-16">
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-4xl font-bold mb-4">Our Trusted Guides</h1>
@@ -77,7 +109,7 @@ const Guides = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {guides.map((guide) => (
+            {allGuides.map((guide) => (
               <Card key={guide.id} className="overflow-hidden">
                 <div className="w-full">
                   <AspectRatio ratio={1}>

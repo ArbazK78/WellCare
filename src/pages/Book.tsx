@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,8 +25,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import BookingConfirmation from "@/components/BookingConfirmation";
 import Navbar from "@/components/Navbar";
 import { useBookings, getRandomGuide, BookingService } from "@/contexts/BookingContext";
+import { format } from "date-fns";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 
 const Book = () => {
+  const location = useLocation();
   const { userPhone, userName, userEmail } = useAuth();
   const { addBooking } = useBookings();
   
@@ -41,8 +47,19 @@ const Book = () => {
     waitingHours: 1,
   });
 
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
+
+  // Extract guide ID from query params if available
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const guideId = params.get('guide');
+    if (guideId) {
+      console.log("Guide selected from guides page:", guideId);
+      // You can use this guideId to pre-select a guide
+    }
+  }, [location.search]);
 
   useEffect(() => {
     setFormData(prev => ({
@@ -57,6 +74,14 @@ const Book = () => {
 
   const handleChange = (field: string, value: string | boolean | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleDateSelect = (date: Date | undefined) => {
+    setSelectedDate(date);
+    if (date) {
+      const formattedDate = format(date, "yyyy-MM-dd");
+      handleChange("date", formattedDate);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -86,16 +111,23 @@ const Book = () => {
       date: formData.date,
       time: formData.time,
       location: formData.location,
-      waitingHours: formData.waitingRequired ? formData.waitingHours : 0
+      waitingHours: formData.waitingRequired ? formData.waitingHours : 0,
+      customerName: formData.name,
+      customerPhone: formData.phone,
+      customerEmail: formData.email
     });
     
     setBookingId(newBookingId);
     setBookingConfirmed(true);
   };
 
-  if (bookingConfirmed && bookingId) {
+  if (bookingConfirmed) {
     return <BookingConfirmation booking={formData} />;
   }
+
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
@@ -216,13 +248,34 @@ const Book = () => {
                         <Label htmlFor="date" className="flex items-center gap-2">
                           <Calendar className="h-4 w-4" /> Date
                         </Label>
-                        <Input
-                          id="date"
-                          type="date"
-                          value={formData.date}
-                          onChange={(e) => handleChange("date", e.target.value)}
-                          required
-                        />
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !selectedDate && "text-muted-foreground"
+                              )}
+                            >
+                              {selectedDate ? (
+                                format(selectedDate, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <Calendar className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComponent
+                              mode="single"
+                              selected={selectedDate}
+                              onSelect={handleDateSelect}
+                              disabled={(date) => date < today}
+                              initialFocus
+                              className="p-3 pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="time" className="flex items-center gap-2">
@@ -286,6 +339,7 @@ const Book = () => {
                       <Button 
                         type="submit" 
                         className="flex-1"
+                        disabled={!formData.date || !formData.time || !formData.service}
                       >
                         Book Now
                       </Button>

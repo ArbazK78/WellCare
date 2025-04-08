@@ -4,31 +4,40 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 export type BookingService = "Navigation Assistance" | "Heavy Lifting" | "Transport Assistance";
 
 export type Guide = {
-  id: number;
+  id: number | string;
   name: string;
   image: string;
   rating: number;
 };
 
+export type Customer = {
+  name: string;
+  phone: string;
+  email?: string;
+  location: string;
+};
+
 export type Booking = {
   id: string;
-  status: "upcoming" | "completed";
+  status: "pending" | "accepted" | "rejected" | "completed";
   service: BookingService;
   guide: Guide;
+  customer: Customer;
   date: string;
   time: string;
   location: string;
   waitingHours: number;
-  customerName?: string;
-  customerPhone?: string;
-  customerEmail?: string;
 };
 
 interface BookingContextType {
   bookings: Booking[];
-  addBooking: (booking: Omit<Booking, "id" | "status">) => string;
+  addBooking: (booking: Omit<Booking, "id" | "status" | "customer"> & {customerName: string, customerPhone: string, customerEmail?: string}) => string;
+  getBookingsForGuide: (guideId: string | number) => Booking[];
+  getBookingsForCustomer: (customerPhone: string) => Booking[];
   completeBooking: (id: string) => void;
   cancelBooking: (id: string) => void;
+  acceptBooking: (id: string) => void;
+  rejectBooking: (id: string, reason?: string) => void;
 }
 
 const BookingContext = createContext<BookingContextType | undefined>(undefined);
@@ -71,15 +80,31 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem("bookings", JSON.stringify(bookings));
   }, [bookings]);
 
-  const addBooking = (bookingData: Omit<Booking, "id" | "status">) => {
+  const addBooking = (bookingData: Omit<Booking, "id" | "status" | "customer"> & {customerName: string, customerPhone: string, customerEmail?: string}) => {
+    const { customerName, customerPhone, customerEmail, ...rest } = bookingData;
+    
     const newBooking: Booking = {
-      ...bookingData,
+      ...rest,
       id: `B${Date.now()}`,
-      status: "upcoming"
+      status: "pending",
+      customer: {
+        name: customerName,
+        phone: customerPhone,
+        email: customerEmail,
+        location: bookingData.location,
+      }
     };
     
     setBookings(prev => [...prev, newBooking]);
     return newBooking.id;
+  };
+
+  const getBookingsForGuide = (guideId: string | number) => {
+    return bookings.filter(booking => booking.guide.id.toString() === guideId.toString());
+  };
+
+  const getBookingsForCustomer = (customerPhone: string) => {
+    return bookings.filter(booking => booking.customer.phone === customerPhone);
   };
 
   const completeBooking = (id: string) => {
@@ -90,12 +115,41 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
+  const acceptBooking = (id: string) => {
+    setBookings(prev => 
+      prev.map(booking => 
+        booking.id === id ? { ...booking, status: "accepted" } : booking
+      )
+    );
+  };
+
+  const rejectBooking = (id: string, reason?: string) => {
+    setBookings(prev => 
+      prev.map(booking => 
+        booking.id === id ? { 
+          ...booking, 
+          status: "rejected",
+          rejectionReason: reason 
+        } : booking
+      )
+    );
+  };
+
   const cancelBooking = (id: string) => {
     setBookings(prev => prev.filter(booking => booking.id !== id));
   };
 
   return (
-    <BookingContext.Provider value={{ bookings, addBooking, completeBooking, cancelBooking }}>
+    <BookingContext.Provider value={{ 
+      bookings, 
+      addBooking, 
+      getBookingsForGuide,
+      getBookingsForCustomer,
+      completeBooking, 
+      cancelBooking,
+      acceptBooking,
+      rejectBooking 
+    }}>
       {children}
     </BookingContext.Provider>
   );

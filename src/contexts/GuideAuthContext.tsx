@@ -25,6 +25,7 @@ type GuideAuthContextType = {
   guideRegister: (phone: string, name: string, password: string, email?: string) => Promise<string>;
   guideLogout: () => void;
   updateGuideProfile: (data: Partial<Omit<Guide, "id" | "status" | "registeredAt">>) => void;
+  getAllApprovedGuides: () => Guide[];
 };
 
 const GuideAuthContext = createContext<GuideAuthContextType | undefined>(undefined);
@@ -115,6 +116,12 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Function to get all approved guides
+  const getAllApprovedGuides = (): Guide[] => {
+    const guides = JSON.parse(localStorage.getItem("guides") || "[]");
+    return guides.filter((guide: Guide) => guide.status === "approved");
+  };
+
   // Function to logout
   const guideLogout = () => {
     localStorage.removeItem("guide_isAuthenticated");
@@ -131,7 +138,8 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
         guideLogin, 
         guideRegister, 
         guideLogout,
-        updateGuideProfile
+        updateGuideProfile,
+        getAllApprovedGuides
       }}
     >
       {children}
