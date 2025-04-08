@@ -20,6 +20,9 @@ export function MultiSelect({
   // Ensure selected is always an array
   const safeSelected = Array.isArray(selected) ? selected : [];
   
+  // Make sure options is also always an array
+  const safeOptions = Array.isArray(options) ? options : [];
+  
   const handleUnselect = (item: string) => {
     onChange(safeSelected.filter((i) => i !== item));
   };
@@ -57,7 +60,7 @@ export function MultiSelect({
         <CommandInput placeholder="Search options..." />
         <CommandEmpty>No option found.</CommandEmpty>
         <CommandGroup className="max-h-60 overflow-auto">
-          {options.map((option) => (
+          {safeOptions.map((option) => (
             <CommandItem
               key={option}
               onSelect={() => handleSelect(option)}

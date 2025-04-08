@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGuideAuth } from "@/contexts/GuideAuthContext";
@@ -31,7 +30,6 @@ import { User, Phone, Mail, Languages, BookOpen, Eye, EyeOff } from "lucide-reac
 import Navbar from "@/components/Navbar";
 import { MultiSelect } from "@/components/MultiSelect";
 
-// Define form validation schema
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
   email: z.string().email("Please enter a valid email.").optional().or(z.literal("")),
@@ -44,12 +42,10 @@ const formSchema = z.object({
   newPassword: z.string().optional(),
   confirmPassword: z.string().optional(),
 }).refine((data) => {
-  // If any password field is filled, all must be filled
   const hasCurrentPassword = !!data.currentPassword?.trim();
   const hasNewPassword = !!data.newPassword?.trim();
   const hasConfirmPassword = !!data.confirmPassword?.trim();
   
-  // If one is filled, all should be filled
   if (hasCurrentPassword || hasNewPassword || hasConfirmPassword) {
     return hasCurrentPassword && hasNewPassword && hasConfirmPassword;
   }
@@ -59,7 +55,6 @@ const formSchema = z.object({
   message: "All password fields must be filled to change password",
   path: ["newPassword"],
 }).refine((data) => {
-  // Check if new password and confirm password match
   if (data.newPassword && data.confirmPassword) {
     return data.newPassword === data.confirmPassword;
   }
@@ -85,8 +80,8 @@ const GuideEditProfile = () => {
     phone: currentGuide?.phone || "",
     bio: currentGuide?.bio || "",
     experience: currentGuide?.experience || "",
-    languages: currentGuide?.languages || [], // Ensure this is always an array
-    specialties: currentGuide?.specialties || [], // Ensure this is always an array
+    languages: Array.isArray(currentGuide?.languages) ? currentGuide.languages : [],
+    specialties: Array.isArray(currentGuide?.specialties) ? currentGuide.specialties : [],
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
@@ -101,10 +96,7 @@ const GuideEditProfile = () => {
     setIsSubmitting(true);
     
     try {
-      // Check current password if trying to change password
       if (values.currentPassword) {
-        // In a real app, this would validate against the backend
-        // For now, we'll check against localStorage
         const guides = JSON.parse(localStorage.getItem("guides") || "[]");
         const guide = guides.find((g: any) => g.id === currentGuide?.id);
         
@@ -118,17 +110,14 @@ const GuideEditProfile = () => {
           return;
         }
         
-        // Update password in localStorage
         const updatedGuides = guides.map((g: any) => 
           g.id === currentGuide?.id ? {...g, password: values.newPassword} : g
         );
         localStorage.setItem("guides", JSON.stringify(updatedGuides));
       }
       
-      // Remove password fields from update data
       const { currentPassword, newPassword, confirmPassword, ...updateData } = values;
       
-      // Update profile
       updateGuideProfile(updateData);
       
       toast({
@@ -136,7 +125,6 @@ const GuideEditProfile = () => {
         description: "Your profile has been successfully updated.",
       });
       
-      // Navigate back to dashboard after successful update
       navigate("/guide/dashboard");
     } catch (error) {
       toast({
