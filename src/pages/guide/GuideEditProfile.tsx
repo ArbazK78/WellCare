@@ -24,18 +24,12 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue 
-} from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { User, Phone, Mail, Languages, BookOpen, Eye, EyeOff } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import { MultiSelect } from "@/components/MultiSelect";
 
 // Define form validation schema
 const formSchema = z.object({
@@ -289,22 +283,12 @@ const GuideEditProfile = () => {
                               <Languages className="h-4 w-4" /> Languages
                             </FormLabel>
                             <FormControl>
-                              <Select
-                                multiple
-                                value={field.value}
-                                onValueChange={(value) => field.onChange(value)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select languages you speak" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {languageOptions.map((language) => (
-                                    <SelectItem key={language} value={language}>
-                                      {language}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <MultiSelect
+                                options={languageOptions}
+                                selected={field.value || []}
+                                onChange={field.onChange}
+                                placeholder="Select languages you speak"
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -318,22 +302,12 @@ const GuideEditProfile = () => {
                           <FormItem>
                             <FormLabel>Specialties</FormLabel>
                             <FormControl>
-                              <Select
-                                multiple
-                                value={field.value}
-                                onValueChange={(value) => field.onChange(value)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select your specialties" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {specialtyOptions.map((specialty) => (
-                                    <SelectItem key={specialty} value={specialty}>
-                                      {specialty}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <MultiSelect
+                                options={specialtyOptions}
+                                selected={field.value || []}
+                                onChange={field.onChange}
+                                placeholder="Select your specialties"
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
