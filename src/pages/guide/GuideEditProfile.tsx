@@ -74,7 +74,6 @@ const GuideEditProfile = () => {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formInitialized, setFormInitialized] = useState(false);
 
   // Safely initialize default values
   const getDefaultValues = (): FormValues => ({
@@ -83,8 +82,8 @@ const GuideEditProfile = () => {
     phone: currentGuide?.phone || "",
     bio: currentGuide?.bio || "",
     experience: currentGuide?.experience || "",
-    languages: Array.isArray(currentGuide?.languages) ? currentGuide.languages : [],
-    specialties: Array.isArray(currentGuide?.specialties) ? currentGuide.specialties : [],
+    languages: Array.isArray(currentGuide?.languages) ? [...currentGuide.languages] : [],
+    specialties: Array.isArray(currentGuide?.specialties) ? [...currentGuide.specialties] : [],
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
@@ -97,11 +96,11 @@ const GuideEditProfile = () => {
 
   // Reset form with current guide data when available
   useEffect(() => {
-    if (currentGuide && !formInitialized) {
+    if (currentGuide) {
+      console.log("Resetting form with guide data:", currentGuide);
       form.reset(getDefaultValues());
-      setFormInitialized(true);
     }
-  }, [currentGuide, formInitialized]);
+  }, [currentGuide, form]);
 
   const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
@@ -129,6 +128,10 @@ const GuideEditProfile = () => {
       
       const { currentPassword, newPassword, confirmPassword, ...updateData } = values;
       
+      // Ensure languages and specialties are arrays
+      updateData.languages = Array.isArray(updateData.languages) ? updateData.languages : [];
+      updateData.specialties = Array.isArray(updateData.specialties) ? updateData.specialties : [];
+      
       updateGuideProfile(updateData);
       
       toast({
@@ -138,6 +141,7 @@ const GuideEditProfile = () => {
       
       navigate("/guide/dashboard");
     } catch (error) {
+      console.error("Profile update error:", error);
       toast({
         variant: "destructive",
         title: "Update failed",
@@ -148,6 +152,7 @@ const GuideEditProfile = () => {
     }
   };
 
+  // Define options outside the render to prevent recreating them on every render
   const languageOptions = [
     "English", "Spanish", "French", "German", "Chinese", 
     "Japanese", "Arabic", "Russian", "Hindi", "Portuguese"

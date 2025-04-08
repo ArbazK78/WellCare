@@ -12,17 +12,18 @@ interface MultiSelectProps {
 }
 
 export function MultiSelect({ 
-  options, 
+  options = [], 
   selected = [], 
   onChange, 
   placeholder = "Select options..." 
 }: MultiSelectProps) {
-  // Initialize state with safe values
+  // Initialize with safe default arrays
   const [internalSelected, setInternalSelected] = useState<string[]>([]);
   const [internalOptions, setInternalOptions] = useState<string[]>([]);
   
-  // Safely update internal state whenever props change
+  // Update internal state when props change
   useEffect(() => {
+    // Ensure arrays are properly initialized with fallbacks
     setInternalSelected(Array.isArray(selected) ? selected : []);
     setInternalOptions(Array.isArray(options) ? options : []);
   }, [selected, options]);
@@ -42,6 +43,15 @@ export function MultiSelect({
       onChange(newSelected);
     }
   };
+
+  // Don't render Command component until options are properly loaded
+  if (!Array.isArray(options) || options.length === 0) {
+    return (
+      <div className="w-full flex flex-wrap gap-1 p-2 border rounded-md min-h-10 bg-background">
+        <span className="text-muted-foreground text-sm pl-2 py-1">{placeholder}</span>
+      </div>
+    );
+  }
 
   return (
     <div className="relative">
