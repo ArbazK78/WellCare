@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGuideAuth } from "@/contexts/GuideAuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -36,8 +37,8 @@ const formSchema = z.object({
   phone: z.string().min(10, "Phone number must be at least 10 digits."),
   bio: z.string().optional(),
   experience: z.string().optional(),
-  languages: z.array(z.string()).optional(),
-  specialties: z.array(z.string()).optional(),
+  languages: z.array(z.string()).default([]),
+  specialties: z.array(z.string()).default([]),
   currentPassword: z.string().optional(),
   newPassword: z.string().optional(),
   confirmPassword: z.string().optional(),
@@ -73,8 +74,10 @@ const GuideEditProfile = () => {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formInitialized, setFormInitialized] = useState(false);
 
-  const defaultValues: FormValues = {
+  // Safely initialize default values
+  const getDefaultValues = (): FormValues => ({
     name: currentGuide?.name || "",
     email: currentGuide?.email || "",
     phone: currentGuide?.phone || "",
@@ -85,12 +88,20 @@ const GuideEditProfile = () => {
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
-  };
+  });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues,
+    defaultValues: getDefaultValues(),
   });
+
+  // Reset form with current guide data when available
+  useEffect(() => {
+    if (currentGuide && !formInitialized) {
+      form.reset(getDefaultValues());
+      setFormInitialized(true);
+    }
+  }, [currentGuide, formInitialized]);
 
   const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
@@ -163,6 +174,7 @@ const GuideEditProfile = () => {
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)}>
                 <CardContent className="space-y-6">
+                  {/* Basic Information Section */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium">Basic Information</h3>
                     
@@ -215,6 +227,7 @@ const GuideEditProfile = () => {
                     />
                   </div>
                   
+                  {/* Professional Details Section */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium">Professional Details</h3>
                     
@@ -304,6 +317,7 @@ const GuideEditProfile = () => {
                     </div>
                   </div>
                   
+                  {/* Password Change Section */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium">Change Password (Optional)</h3>
                     

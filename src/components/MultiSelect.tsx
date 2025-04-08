@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { X } from "lucide-react";
@@ -13,33 +13,41 @@ interface MultiSelectProps {
 
 export function MultiSelect({ 
   options, 
-  selected = [], // Provide default empty array
+  selected = [], 
   onChange, 
   placeholder = "Select options..." 
 }: MultiSelectProps) {
-  // Ensure selected is always an array
-  const safeSelected = Array.isArray(selected) ? selected : [];
+  // Initialize state with safe values
+  const [internalSelected, setInternalSelected] = useState<string[]>([]);
+  const [internalOptions, setInternalOptions] = useState<string[]>([]);
   
-  // Make sure options is also always an array
-  const safeOptions = Array.isArray(options) ? options : [];
-  
+  // Safely update internal state whenever props change
+  useEffect(() => {
+    setInternalSelected(Array.isArray(selected) ? selected : []);
+    setInternalOptions(Array.isArray(options) ? options : []);
+  }, [selected, options]);
+
   const handleUnselect = (item: string) => {
-    onChange(safeSelected.filter((i) => i !== item));
+    const newSelected = internalSelected.filter((i) => i !== item);
+    setInternalSelected(newSelected);
+    onChange(newSelected);
   };
 
   const handleSelect = (item: string) => {
-    if (safeSelected.includes(item)) {
+    if (internalSelected.includes(item)) {
       handleUnselect(item);
     } else {
-      onChange([...safeSelected, item]);
+      const newSelected = [...internalSelected, item];
+      setInternalSelected(newSelected);
+      onChange(newSelected);
     }
   };
 
   return (
     <div className="relative">
       <div className="w-full flex flex-wrap gap-1 p-2 border rounded-md min-h-10 bg-background">
-        {safeSelected.length > 0 ? (
-          safeSelected.map((item) => (
+        {internalSelected.length > 0 ? (
+          internalSelected.map((item) => (
             <Badge key={item} className="m-1" variant="secondary">
               {item}
               <button
@@ -60,7 +68,7 @@ export function MultiSelect({
         <CommandInput placeholder="Search options..." />
         <CommandEmpty>No option found.</CommandEmpty>
         <CommandGroup className="max-h-60 overflow-auto">
-          {safeOptions.map((option) => (
+          {internalOptions.map((option) => (
             <CommandItem
               key={option}
               onSelect={() => handleSelect(option)}
@@ -68,12 +76,12 @@ export function MultiSelect({
             >
               <div
                 className={`mr-2 flex h-4 w-4 items-center justify-center rounded-sm border ${
-                  safeSelected.includes(option)
+                  internalSelected.includes(option)
                     ? "bg-primary text-primary-foreground border-primary"
                     : "opacity-50 border-muted-foreground"
                 }`}
               >
-                {safeSelected.includes(option) && "✓"}
+                {internalSelected.includes(option) && "✓"}
               </div>
               {option}
             </CommandItem>
