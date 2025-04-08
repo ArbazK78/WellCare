@@ -11,24 +11,32 @@ interface MultiSelectProps {
   placeholder?: string;
 }
 
-export function MultiSelect({ options, selected, onChange, placeholder = "Select options..." }: MultiSelectProps) {
+export function MultiSelect({ 
+  options, 
+  selected = [], // Provide default empty array
+  onChange, 
+  placeholder = "Select options..." 
+}: MultiSelectProps) {
+  // Ensure selected is always an array
+  const safeSelected = Array.isArray(selected) ? selected : [];
+  
   const handleUnselect = (item: string) => {
-    onChange(selected.filter((i) => i !== item));
+    onChange(safeSelected.filter((i) => i !== item));
   };
 
   const handleSelect = (item: string) => {
-    if (selected.includes(item)) {
+    if (safeSelected.includes(item)) {
       handleUnselect(item);
     } else {
-      onChange([...selected, item]);
+      onChange([...safeSelected, item]);
     }
   };
 
   return (
     <div className="relative">
       <div className="w-full flex flex-wrap gap-1 p-2 border rounded-md min-h-10 bg-background">
-        {selected.length > 0 ? (
-          selected.map((item) => (
+        {safeSelected.length > 0 ? (
+          safeSelected.map((item) => (
             <Badge key={item} className="m-1" variant="secondary">
               {item}
               <button
@@ -57,12 +65,12 @@ export function MultiSelect({ options, selected, onChange, placeholder = "Select
             >
               <div
                 className={`mr-2 flex h-4 w-4 items-center justify-center rounded-sm border ${
-                  selected.includes(option)
+                  safeSelected.includes(option)
                     ? "bg-primary text-primary-foreground border-primary"
                     : "opacity-50 border-muted-foreground"
                 }`}
               >
-                {selected.includes(option) && "✓"}
+                {safeSelected.includes(option) && "✓"}
               </div>
               {option}
             </CommandItem>

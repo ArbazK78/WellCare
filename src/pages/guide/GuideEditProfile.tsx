@@ -85,8 +85,8 @@ const GuideEditProfile = () => {
     phone: currentGuide?.phone || "",
     bio: currentGuide?.bio || "",
     experience: currentGuide?.experience || "",
-    languages: currentGuide?.languages || [],
-    specialties: currentGuide?.specialties || [],
+    languages: currentGuide?.languages || [], // Ensure this is always an array
+    specialties: currentGuide?.specialties || [], // Ensure this is always an array
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
