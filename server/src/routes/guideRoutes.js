@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const Guide = require('../models/Guide');
 const verifyGuideToken = require('../middlewares/verifyGuideToken');
-
+const verifyAdminToken = require('../middlewares/verifyAdminToken');
 
 
 router.post('/test', (req, res) => {
@@ -22,10 +22,23 @@ router.get('/approved', async (req, res) => {
 });
 
 
+// GET /api/guides/profile — returns the logged-in guide's data (used for session restore)
+router.get('/profile', verifyGuideToken, async (req, res) => {
+  try {
+    const guide = await Guide.findById(req.guide.id).select('-password');
+    if (!guide) {
+      return res.status(404).json({ message: 'Guide not found' });
+    }
+    res.json(guide);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch guide profile' });
+  }
+});
+
 // POST /api/guides/register
 router.post('/register', guideController.registerGuide);
 
-// ✅ Add this route for guide login
+// POST /api/guides/login
 router.post('/login', guideController.loginGuide);
 
 
@@ -74,7 +87,13 @@ router.put("/update-profile", verifyGuideToken, async (req, res) => {
 
 router.get('/random', guideController.getRandomGuide);
 
-router.put('/:id/status', async (req, res) => {
+// ✅ Route to reset password
+router.post('/reset-password', guideController.resetPassword);
+
+// PUT /guides/:id/status — Admin only (approve/reject)
+// NOTE: The primary admin route is POST /api/admin/guides/:id/status
+// This route is kept for legacy compat but is now also protected
+router.put('/:id/status', verifyAdminToken, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
@@ -95,6 +114,8 @@ router.put('/:id/status', async (req, res) => {
     res.status(500).json({ message: "Failed to update guide status" });
   }
 });
+
+
 
 
 

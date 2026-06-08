@@ -12,7 +12,7 @@ const About = () => {
       <div className="bg-blue-50 py-16 md:py-24">
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center">
-            <h1 className="text-4xl md:text-5xl font-bold mb-6">About GuideMate</h1>
+            <h1 className="text-4xl md:text-5xl font-bold mb-6">About WellCare</h1>
             <p className="text-xl text-gray-600">
               Bringing help and assistance to those who need it most
             </p>
@@ -27,7 +27,7 @@ const About = () => {
             <h2 className="text-3xl font-bold mb-6">Our Story</h2>
             <div className="prose prose-lg">
               <p>
-                GuideMate was born from a simple observation: while India has platforms for food 
+                WellCare was born from a simple observation: while India has platforms for food 
                 and grocery delivery, there wasn't a reliable service connecting people who need 
                 physical assistance with trusted helpers.
               </p>
@@ -51,7 +51,7 @@ const About = () => {
       <section className="bg-gray-50 py-16">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl font-bold text-center mb-12">How GuideMate Works</h2>
+            <h2 className="text-3xl font-bold text-center mb-12">How WellCare Works</h2>
             
             <div className="grid md:grid-cols-3 gap-8">
               <div className="bg-white p-6 rounded-lg shadow-md text-center">
@@ -94,7 +94,7 @@ const About = () => {
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-3xl font-bold mb-6">Our Guides</h2>
             <p className="text-xl text-gray-600 mb-8">
-              All GuideMate helpers undergo strict verification and training before joining our platform.
+              All WellCare helpers undergo strict verification and training before joining our platform.
             </p>
             
             <div className="bg-blue-50 p-6 rounded-lg mb-8">
@@ -120,7 +120,7 @@ const About = () => {
             </div>
             
             <Button asChild>
-              <Link to="/guides">Meet Our Guides</Link>
+              <Link to="/guide/register">Become a Guide</Link>
             </Button>
           </div>
         </div>
@@ -131,7 +131,7 @@ const About = () => {
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl font-bold mb-4">Ready to get started?</h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-            Book your first guide today and experience the convenience of GuideMate.
+            Book your first guide today and experience the convenience of WellCare.
           </p>
           <Button size="lg" asChild>
             <Link to="/book">Book a Guide Now</Link>
@@ -143,7 +143,7 @@ const About = () => {
       <footer className="bg-gray-50 py-8">
         <div className="container mx-auto px-4">
           <div className="text-center text-gray-500">
-            <p>© {new Date().getFullYear()} GuideMate. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} WellCare. All rights reserved.</p>
           </div>
         </div>
       </footer>

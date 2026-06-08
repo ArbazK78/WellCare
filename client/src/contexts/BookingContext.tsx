@@ -22,17 +22,24 @@ export type Booking = {
   _id: string;
   status: "pending" | "accepted" | "rejected" | "completed";
   service: BookingService;
+  vehicleType: "scooter" | "cab";
+  pickupLocation: string;
+  destinationAddress: string;
+  dropBack: boolean;
+  /** @deprecated Use pickupLocation / destinationAddress. Kept for old DB records. */
+  location?: string;
   guide: Guide;
   customer: Customer;
   date: string;
   time: string;
-  location: string;
   waitingHours: number;
   rejectionReason?: string;
 };
 
+
 interface BookingContextType {
   bookings: Booking[];
+  refreshBookings: () => Promise<void>;
   addBooking: (booking: Omit<Booking, "id" | "status" | "customer"> & { customerName: string, customerPhone: string, customerEmail?: string }) => Promise<string>;
   getBookingsForGuide: (guideId: string | number) => Promise<Booking[]>;
   getBookingsForCustomer: () => Promise<Booking[]>;
@@ -121,19 +128,9 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
       return data._id; // Assuming your backend returns _id
     } catch (error) {
       console.error("Error adding booking:", error);
-      const newBooking: Booking = {
-        ...bookingData,
-        _id: `B${Date.now()}`,
-        status: "pending",
-        customer: {
-          name: bookingData.customerName,
-          phone: bookingData.customerPhone,
-          email: bookingData.customerEmail,
-          location: bookingData.location,
-        }
-      };
-      setBookings(prev => [...prev, newBooking]);
-      return newBooking._id;
+      // Don't create fallback bookings with invalid IDs
+      // Instead, throw the error so the caller can handle it
+      throw error;
     }
   };
 
@@ -223,6 +220,7 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
   return (
     <BookingContext.Provider value={{
       bookings,
+      refreshBookings: fetchUserBookings,
       addBooking,
       getBookingsForGuide,
       getBookingsForCustomer,

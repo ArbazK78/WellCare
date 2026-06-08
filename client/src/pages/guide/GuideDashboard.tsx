@@ -8,8 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Calendar, Clock, MapPin, User, Star, X, Check, Bell } from "lucide-react";
-import Navbar from "@/components/Navbar";
+
 import { useNavigate } from "react-router-dom";
+import api from "@/lib/api";
 
 const GuideDashboard = () => {
   const { currentGuide } = useGuideAuth();
@@ -27,62 +28,144 @@ const GuideDashboard = () => {
   };
 
   useEffect(() => {
-    // Load bookings from localStorage
-    const storedBookings = JSON.parse(localStorage.getItem("bookings") || "[]");
+    // Fetch bookings from backend API instead of localStorage
+    const fetchBookings = async () => {
+      if (!currentGuide) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem('guide_token');
+        if (!token) {
+          console.warn('⚠️ No guide token found');
+          setLoading(false);
+          return;
+        }
+
+        const headers = { Authorization: `Bearer ${token}` };
+        
+        console.log('🔄 Fetching guide bookings from API...');
+        
+        // Fetch all booking types in parallel
+        const [pendingRes, acceptedRes, completedRes] = await Promise.all([
+          api.get('/bookings/guide/pending', { headers }),
+          api.get('/bookings/guide/accepted', { headers }),
+          api.get('/bookings/guide/completed', { headers })
+        ]);
+        
+        // Combine all bookings
+        const allBookings = [
+          ...pendingRes.data,
+          ...acceptedRes.data,
+          ...completedRes.data
+        ];
+        
+        console.log('✅ Fetched bookings:', {
+          pending: pendingRes.data.length,
+          accepted: acceptedRes.data.length,
+          completed: completedRes.data.length,
+          total: allBookings.length
+        });
+        
+        setBookings(allBookings);
+      } catch (error) {
+        console.error('❌ Error fetching guide bookings:', error);
+        toast({
+          title: "Error loading bookings",
+          description: "Failed to load your bookings. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    // Filter bookings for the current guide - ensuring proper type comparison
-    // Convert guide.id to string for comparison since IDs in BookingContext are strings
-    const guideBookings = storedBookings.filter(
-      (booking: any) => booking.guide?.id && booking.guide.id.toString() === currentGuide?.id
-    );
-    
-    setBookings(guideBookings);
-    setLoading(false);
-  }, [currentGuide]);
+    fetchBookings();
+  }, [currentGuide, toast]);
 
   // Filter bookings by status
   const pendingBookings = bookings.filter(booking => booking.status === "pending");
   const acceptedBookings = bookings.filter(booking => booking.status === "accepted");
   const completedBookings = bookings.filter(booking => booking.status === "completed");
 
-  const handleAcceptBooking = (bookingId: string) => {
-    // In a real app, this would update the booking status in the database
-    // For now, we'll just show a toast
-    toast({
-      title: "Booking accepted",
-      description: "You've accepted this booking.",
-    });
+  const handleAcceptBooking = async (bookingId: string) => {
+    try {
+      const token = localStorage.getItem('guide_token');
+      await api.put(`/bookings/${bookingId}/status`, 
+        { status: 'accepted' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Update local state
+      setBookings(prev => prev.map(b => 
+        b._id === bookingId ? { ...b, status: 'accepted' as const } : b
+      ));
+      
+      toast({
+        title: "Booking accepted",
+        description: "You've accepted this booking.",
+      });
+    } catch (error) {
+      console.error('Error accepting booking:', error);
+      toast({
+        title: "Error accepting booking",
+        description: "Failed to accept booking. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleRejectBooking = (bookingId: string) => {
-    // In a real app, this would update the booking status in the database
-    // For now, we'll just show a toast
-    toast({
-      variant: "destructive",
-      title: "Booking rejected",
-      description: "You've rejected this booking.",
-    });
+  const handleRejectBooking = async (bookingId: string) => {
+    try {
+      const token = localStorage.getItem('guide_token');
+      await api.put(`/bookings/${bookingId}/status`, 
+        { status: 'rejected' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Remove from local state (or update status)
+      setBookings(prev => prev.filter(b => b._id !== bookingId));
+      
+      toast({
+        title: "Booking rejected",
+        description: "You've rejected this booking.",
+      });
+    } catch (error) {
+      console.error('Error rejecting booking:', error);
+      toast({
+        title: "Error rejecting booking",
+        description: "Failed to reject booking. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleCompleteBooking = (bookingId: string) => {
-    // Update the booking status in localStorage
-    const updatedBookings = bookings.map(booking => 
-      booking._id === bookingId ? { ...booking, status: "completed" as const } : booking
-    );
-    
-    // Save all bookings back to localStorage
-    const allStoredBookings = JSON.parse(localStorage.getItem("bookings") || "[]");
-    const updatedAllBookings = allStoredBookings.map((booking: Booking) =>
-      booking._id === bookingId ? { ...booking, status: "completed" as const } : booking
-    );
-    
-    localStorage.setItem("bookings", JSON.stringify(updatedAllBookings));
-    setBookings(updatedBookings);
-    
-    toast({
-      title: "Booking completed",
-      description: "You've marked this booking as completed.",
-    });
+  const handleCompleteBooking = async (bookingId: string) => {
+    try {
+      const token = localStorage.getItem('guide_token');
+      await api.put(`/bookings/${bookingId}/status`, 
+        { status: 'completed' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Update local state
+      setBookings(prev => prev.map(b => 
+        b._id === bookingId ? { ...b, status: 'completed' as const } : b
+      ));
+      
+      toast({
+        title: "Booking completed",
+        description: "You've marked this booking as completed.",
+      });
+    } catch (error) {
+      console.error('Error completing booking:', error);
+      toast({
+        title: "Error completing booking",
+        description: "Failed to complete booking. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const BookingCard = ({ 
@@ -130,16 +213,37 @@ const GuideDashboard = () => {
           <div className="flex items-center">
             <User className="h-4 w-4 mr-2 text-gray-500" />
             <span className="font-medium">Customer Details:</span> 
-            <span className="ml-2">{booking.customer.name || "Not provided"}</span>
-            <span className="ml-2">{booking.customer.phone || "No phone"}</span>
+            <span className="ml-2">{booking.customer?.name || "Not provided"}</span>
+            <span className="ml-2">{booking.customer?.phone || "No phone"}</span>
           </div>
           
           <div className="flex items-start">
-            <MapPin className="h-4 w-4 mr-2 text-gray-500 mt-1" />
-            <div>
-              <span className="font-medium">Location:</span>
-              <div className="text-sm mt-1">{booking.location}</div>
+            <MapPin className="h-4 w-4 mr-2 text-gray-500 mt-1 shrink-0" />
+            <div className="text-sm">
+              <div>
+                <span className="font-medium text-gray-600">Pickup:</span>{" "}
+                {(booking as any).pickupLocation || (booking as any).location || "—"}
+              </div>
+              {(booking as any).destinationAddress && (
+                <div>
+                  <span className="font-medium text-gray-600">Destination:</span>{" "}
+                  {(booking as any).destinationAddress}
+                </div>
+              )}
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {(booking as any).vehicleType && (
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
+                {(booking as any).vehicleType === "scooter" ? "🛵 Scooter" : "🚖 Cab"}
+              </span>
+            )}
+            {(booking as any).dropBack && (
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+                🏠 Drop-back home
+              </span>
+            )}
           </div>
           
           <div className="flex flex-wrap items-center gap-4">
@@ -197,8 +301,6 @@ const GuideDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      
       <div className="container mx-auto px-4 py-8">
         {currentGuide && (
           <Card className="mb-8">
@@ -255,17 +357,13 @@ const GuideDashboard = () => {
               <Bell className="h-4 w-4 mr-1" />
               Pending Requests ({pendingBookings.length})
             </TabsTrigger>
-            <TabsTrigger value="accepted">
             <TabsTrigger value="accepted" className="flex items-center">
-            <Check className="h-4 w-4 mr-1" />
-            </TabsTrigger>
+              <Check className="h-4 w-4 mr-1" />
               Accepted Bookings ({acceptedBookings.length})
             </TabsTrigger>
-            <TabsTrigger value="completed">
             <TabsTrigger value="completed" className="flex items-center">
-            <Check className="h-4 w-4 mr-1 text-green-500" />
+              <Check className="h-4 w-4 mr-1 text-green-500" />
               Completed Bookings ({completedBookings.length})
-              </TabsTrigger>
             </TabsTrigger>
           </TabsList>
           

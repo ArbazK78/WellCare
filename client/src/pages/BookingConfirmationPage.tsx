@@ -8,13 +8,19 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface BookingData {
   name: string;
-  phone: string;
-  location: string;
+  phone?: string;
+  // Phase 2 location fields
+  pickupLocation?: string;
+  destinationAddress?: string;
+  vehicleType?: "scooter" | "cab";
+  dropBack?: boolean;
+  /** @deprecated legacy field */
+  location?: string;
   service: string;
   date: string;
   time: string;
-  waitingRequired: boolean;
-  waitingHours: number;
+  waitingRequired?: boolean;
+  waitingHours?: number;
   _id?: string;
 }
 
@@ -28,7 +34,7 @@ const BookingConfirmationPage = () => {
   useEffect(() => {
     if (!booking && bookingId) {
       setLoading(true);
-      api.get(`/bookings/${bookingId}`) // Assuming this backend route exists
+      api.get(`/bookings/${bookingId}`)
         .then(response => {
           setBooking(response.data);
           setLoading(false);

@@ -1,4 +1,3 @@
-// server/src/models/Guide.js
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 

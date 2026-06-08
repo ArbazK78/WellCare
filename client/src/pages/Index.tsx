@@ -12,7 +12,7 @@ const Index = () => {
       <header className="container mx-auto px-4 py-16 md:py-24">
         <div className="max-w-3xl mx-auto text-center">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            GuideMate
+            WellCare
           </h1>
           <p className="text-xl md:text-2xl text-gray-600 mb-8">
             Assistance when you need it most. Connect with trusted guides for everyday help.
@@ -133,7 +133,7 @@ const Index = () => {
       <section className="container mx-auto px-4 py-16 md:py-24 text-center">
         <h2 className="text-3xl font-bold mb-6">Ready to Get Started?</h2>
         <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-          Book a guide for your needs in minutes and experience the convenience of GuideMate.
+          Book a guide for your needs in minutes and experience the convenience of WellCare.
         </p>
         <Button size="lg" asChild>
           <Link to="/book">Book Now</Link>
@@ -144,7 +144,7 @@ const Index = () => {
       <footer className="bg-gray-50 py-8">
         <div className="container mx-auto px-4">
           <div className="text-center text-gray-500">
-            <p>© {new Date().getFullYear()} GuideMate. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} WellCare. All rights reserved.</p>
           </div>
         </div>
       </footer>

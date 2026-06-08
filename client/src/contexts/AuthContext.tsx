@@ -16,6 +16,7 @@ type AuthContextType = {
   setUser: (user: { _id: string; name: string; email: string; phone?: string; profilePicture?: string } | null) => void; // ✅ UPDATED TYPE TO INCLUDE phone
 };
 
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -65,6 +66,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUserEmail(data.email);
           // ✅ Update the full user object as well, including phone
           setUserState({ _id: data._id, name: data.name, email: data.email, phone: data.phone });
+          console.log("✅ [AuthContext] User profile fetched:", data); // ADD THIS LINE
+          console.log("✅ [AuthContext] userName set to:", data.name); // ADD THIS LINE
         })
         .catch((err) => {
           console.error("❌ Auth check failed:", err);
@@ -91,6 +94,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserEmail(data.user.email);
       // ✅ Update the full user object on login, including phone
       setUserState({ _id: data.user._id, name: data.user.name, email: data.user.email, phone: data.user.phone });
+      console.log("✅ [AuthContext] Login successful, user data:", data.user); // ADD THIS LINE
+  console.log("✅ [AuthContext] userName set to:", data.user.name); // ADD THIS LINE
       return true;
     } catch (error: any) {
       toast({
@@ -112,6 +117,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserEmail(data.user.email);
       // ✅ Update the full user object on registration, including phone
       setUserState({ _id: data.user._id, name: data.user.name, email: data.user.email, phone: data.user.phone });
+      console.log("✅ [AuthContext] Login successful, user data:", data.user); // ADD THIS LINE
+  console.log("✅ [AuthContext] userName set to:", data.user.name); // ADD THIS LINE
       return true;
     } catch (error: any) {
       toast({

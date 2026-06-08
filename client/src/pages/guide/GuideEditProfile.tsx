@@ -29,7 +29,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { User, Phone, Mail, Languages, BookOpen, Eye, EyeOff } from "lucide-react";
-import Navbar from "@/components/Navbar";
+
 import MultiSelect from "@/components/MultiSelect";
 
 const formSchema = z.object({
@@ -175,7 +175,6 @@ const onSubmit = async (values: FormValues) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <Navbar />
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto">
           <Card>

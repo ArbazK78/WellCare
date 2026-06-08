@@ -50,17 +50,25 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
           const { data } = await api.get("/guides/profile", {
             headers: { Authorization: `Bearer ${token}` }
           });
-
           setIsAuthenticated(true);
           setCurrentGuide(data);
-        } catch (error) {
-          guideLogout();
+        } catch (error: any) {
+          // Only clear the session on an explicit auth rejection (401).
+          // Network errors, 500s, or timeouts should NOT log the guide out —
+          // they are transient and should not destroy a valid session.
+          if (error?.response?.status === 401) {
+            console.warn("⚠️ Guide token rejected by server — logging out.");
+            guideLogout();
+          } else {
+            console.warn("⚠️ Could not verify guide session (non-auth error). Keeping token.", error?.message);
+          }
         }
       };
 
       fetchGuideData();
     }
   }, []);
+
 
   const guideLogin = async (phone: string, password: string) => {
     try {

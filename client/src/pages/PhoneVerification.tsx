@@ -19,7 +19,7 @@ const PhoneVerification = () => {
               <div className="p-6 md:p-8">
                 <CardHeader className="px-0 pt-0">
                   <CardTitle className="text-2xl font-bold">
-                    Welcome to GuideMate
+                    Welcome to WellCare
                   </CardTitle>
                   <CardDescription>
                     Sign in or create an account to continue

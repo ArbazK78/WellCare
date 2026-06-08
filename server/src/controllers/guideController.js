@@ -1,4 +1,5 @@
 const Guide = require('../models/Guide');
+const mongoose = require('mongoose');
 
 
 exports.registerGuide = async (req, res) => {
@@ -109,5 +110,44 @@ exports.getRandomGuide = async (req, res) => {
 
   res.json(randomGuide);
 
+};
+
+ // Reseting Password
+exports.resetPassword = async (req, res) => {
+  const { phone, newPassword } = req.body;
+
+  console.log("📦 DB NAME:", mongoose.connection.name);
+console.log("📦 COLLECTION:", Guide.collection.name);
+
+  console.log("Guide schema paths:", Object.keys(Guide.schema.paths));
+  console.log("RESET PASSWORD BODY:", req.body);
+
+
+  if (!phone || !newPassword) {
+    return res.status(400).json({ message: "Phone number and new password are required." });
+  }
+
+  try {
+    const guide = await Guide.findOne({ phone });
+    console.log("FOUND GUIDE:", guide);
+
+
+    if (!guide) {
+      return res.status(404).json({ message: "Guide not found." });
+    }
+
+    console.log("Before:", guide.password);
+
+    
+    guide.password = newPassword; // ✅ Plain text password
+        console.log("After:", guide.password);
+
+    await guide.save();
+
+    res.status(200).json({ message: "Password reset successfully." });
+  } catch (error) {
+    console.error("Reset Password Error:", error);
+    res.status(500).json({ message: "Server error while resetting password." });
+  }
 };
 

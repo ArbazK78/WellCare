@@ -15,7 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Phone, Lock, Eye, EyeOff } from "lucide-react";
-import Navbar from "@/components/Navbar";
+
 import { 
   Dialog, 
   DialogContent, 
@@ -46,6 +46,8 @@ const GuideLogin = () => {
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+  // New state to control the dialog visibility
+const [isForgotPasswordDialogOpen, setIsForgotPasswordDialogOpen] = useState(false); 
 
   // Get the return URL from location state or default to guide dashboard
   const returnUrl = location.state?.returnUrl || "/guide/dashboard";
@@ -61,7 +63,7 @@ const GuideLogin = () => {
       if (result === "success") {
         toast({
           title: "Login successful",
-          description: "Welcome back to GuideMate!",
+          description: "Welcome back to WellCare!",
         });
         navigate(returnUrl);
       } else if (result === "pending") {
@@ -115,7 +117,7 @@ const GuideLogin = () => {
     }, 1000);
   };
   
-  const handleResetPassword = () => {
+  const handleResetPassword = async () => {
     if (otp !== "1234") {
       toast({
         variant: "destructive",
@@ -145,35 +147,54 @@ const GuideLogin = () => {
     
     setIsResettingPassword(true);
     
-    // Simulate password reset
-    setTimeout(() => {
-      // In a real app, we would call an API to reset the password
-      // For demo, we'll just update localStorage
-      
-      const guides = JSON.parse(localStorage.getItem("guides") || "[]");
-      const updatedGuides = guides.map((g: any) => 
-        g.phone === forgotPhone ? {...g, password: newPassword} : g
-      );
-      localStorage.setItem("guides", JSON.stringify(updatedGuides));
-      
-      setIsResettingPassword(false);
-      toast({
-        title: "Password reset successful",
-        description: "You can now login with your new password",
-      });
-      
-      // Reset the form and close the dialog
-      setForgotPhone("");
-      setOtp("");
-      setNewPassword("");
-      setConfirmNewPassword("");
-      setShowOTPInput(false);
-    }, 1500);
+    try {
+  const response = await fetch("http://localhost:5000/api/guides/reset-password", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      phone: forgotPhone,
+      newPassword: newPassword,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (response.ok) {
+    toast({
+      title: "Password reset successful",
+      description: "You can now login with your new password",
+    });
+    
+    setForgotPhone("");
+    setOtp("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setShowOTPInput(false);
+    setIsForgotPasswordDialogOpen(false);
+  } else {
+    toast({
+      variant: "destructive",
+      title: "Reset failed",
+      description: data.message || "Unable to reset password",
+    });
+  }
+} catch (error) {
+  console.error("Reset password error:", error);
+  toast({
+    variant: "destructive",
+    title: "Server error",
+    description: "Try again later.",
+  });
+} finally {
+  setIsResettingPassword(false);
+}
+
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <Navbar />
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto">
           <Card>
@@ -224,7 +245,10 @@ const GuideLogin = () => {
                 </div>
                 
                 <div className="flex justify-end">
-                  <Dialog>
+                  <Dialog
+                   open={isForgotPasswordDialogOpen} 
+    onOpenChange={setIsForgotPasswordDialogOpen}
+                  >
                     <DialogTrigger asChild>
                       <Button variant="link" type="button" className="px-0 h-auto font-normal">
                         Forgot Password?

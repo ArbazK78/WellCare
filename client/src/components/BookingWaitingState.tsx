@@ -3,6 +3,7 @@ import { Progress } from "@/components/ui/progress";
 import { Clock, MapPin, Calendar } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 
 interface BookingWaitingStateProps {
   service: string;
@@ -13,12 +14,19 @@ interface BookingWaitingStateProps {
   onCancel: () => void;
 }
 
-const BookingWaitingState = ({ service, date, time, location, onCancel }: BookingWaitingStateProps) => {
+const BookingWaitingState = ({ service, date, time, location, onCancel, booking }: BookingWaitingStateProps) => {
   const [progress, setProgress] = useState(0);
   const [waitingTime, setWaitingTime] = useState(0);
 
-  // Effect to animate progress and increase waiting time
   useEffect(() => {
+    console.log("🎭 BookingWaitingState mounted with data:", {
+      service,
+      date,
+      time,
+      location,
+      booking
+    });
+
     const progressInterval = setInterval(() => {
       setProgress((prev) => {
         // Reset progress when it reaches 100, creating a continuous animation
@@ -36,7 +44,7 @@ const BookingWaitingState = ({ service, date, time, location, onCancel }: Bookin
       clearInterval(progressInterval);
       clearInterval(waitingInterval);
     };
-  }, []);
+  }, [service, date, time, location, booking]);
 
   // Format waiting time into minutes/hours
   const formatWaitingTime = () => {
@@ -107,20 +115,17 @@ const BookingWaitingState = ({ service, date, time, location, onCancel }: Bookin
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
 
-              
-          {/* ✅ Add Cancel Button Here */}
           <div className="mt-6 text-center">
-            <button
+            <Button
+              variant="destructive"
               onClick={onCancel}
-              className="px-4 py-2 border border-red-500 text-red-500 rounded hover:bg-red-100 transition"
+              className="w-full"
             >
               Cancel Booking
-            </button>
-          </div>
-              
-              <Skeleton className="h-8 w-24 bg-blue-200" />
-            </div>
+            </Button>
           </div>
         </div>
       </CardContent>

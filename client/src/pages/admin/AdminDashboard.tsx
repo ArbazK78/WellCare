@@ -1,6 +1,6 @@
-import api from "@/utils/api";
-
+import api from "@/lib/api";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
   Card, 
   CardContent, 
@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Check, X, Search } from "lucide-react";
+import { Check, X, Search, LogOut } from "lucide-react";
 import { Guide, GuideStatus } from "@/contexts/GuideAuthContext";
 import Navbar from "@/components/Navbar";
 
@@ -38,13 +38,22 @@ type GuideWithPassword = Guide & { _id: string };
 
 const AdminDashboard = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [guides, setGuides] = useState<GuideWithPassword[]>([]);
   const [selectedGuide, setSelectedGuide] = useState<GuideWithPassword | null>(null);
+
+  const adminToken = localStorage.getItem("admin_token");
+  const authHeaders = { Authorization: `Bearer ${adminToken}` };
+
+  const handleAdminLogout = () => {
+    localStorage.removeItem("admin_token");
+    navigate("/admin/login");
+  };
   
   useEffect(() => {
     const fetchGuides = async () => {
       try {
-        const { data } = await api.get("/guides/all");
+        const { data } = await api.get("/admin/guides", { headers: authHeaders });
         setGuides(data);
       } catch (err) {
         console.error("Failed to fetch guides", err);
@@ -57,10 +66,10 @@ const AdminDashboard = () => {
 
   const updateGuideStatus = async (guideId: string, status: GuideStatus) => {
     try {
-      await api.put(`/guides/${guideId}/status`, { status });
+      await api.put(`/admin/guides/${guideId}/status`, { status }, { headers: authHeaders });
   
-      const { data } = await api.get("/guides/all");
-    setGuides(data);
+      const { data } = await api.get("/admin/guides", { headers: authHeaders });
+      setGuides(data);
   
       toast({
         title: `Guide ${status}`,
@@ -87,8 +96,8 @@ const AdminDashboard = () => {
       <div className="container mx-auto px-4 py-8">
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle className="text-2xl">Welcome Arbaz!</CardTitle>
-            <CardTitle className="text-xl">Admin Dashboard</CardTitle>
+            <CardTitle className="text-2xl">WellCare Admin</CardTitle>
+            <CardTitle className="text-xl">Control Panel</CardTitle>
             <CardDescription>
               Manage guide applications and monitor the platform
             </CardDescription>

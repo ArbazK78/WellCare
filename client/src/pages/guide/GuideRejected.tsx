@@ -4,7 +4,7 @@ import { useGuideAuth } from "@/contexts/GuideAuthContext";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
-import Navbar from "@/components/Navbar";
+
 
 const GuideRejected = () => {
   const { currentGuide, guideLogout } = useGuideAuth();
@@ -25,7 +25,6 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <Navbar />
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto">
           <Card>

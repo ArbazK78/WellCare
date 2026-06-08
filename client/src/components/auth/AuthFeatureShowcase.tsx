@@ -6,7 +6,7 @@ const AuthFeatureShowcase = () => {
     <div className="hidden md:block bg-blue-600 text-white p-8">
       <div className="h-full flex flex-col justify-between">
         <div>
-          <h2 className="text-2xl font-bold mb-4">Join GuideMate Today</h2>
+          <h2 className="text-2xl font-bold mb-4">Join WellCare Today</h2>
           <p className="mb-6">Get assistance when you need it most with our trusted guides.</p>
           
           <ul className="space-y-4">
@@ -42,7 +42,7 @@ const AuthFeatureShowcase = () => {
         
         <div className="mt-8 bg-blue-700 p-4 rounded-lg">
           <p className="italic text-sm text-blue-100">
-            "GuideMate made my hospital visits so much easier. Having someone to help me navigate and carry my things was invaluable."
+            "WellCare made my hospital visits so much easier. Having someone to help me navigate and carry my things was invaluable."
           </p>
           <p className="mt-2 font-medium">— Sarah J.</p>
         </div>

@@ -32,7 +32,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Phone, User, Lock, Mail, ArrowRight, Eye, EyeOff } from "lucide-react";
-import Navbar from "@/components/Navbar";
+
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -156,7 +156,6 @@ const GuideRegister = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <Navbar />
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto">
           <Card>
