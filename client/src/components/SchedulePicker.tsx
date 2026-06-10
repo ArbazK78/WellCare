@@ -27,6 +27,24 @@ export function SchedulePicker({ value, onChange }: SchedulePickerProps) {
   const handleUpdate = (field: keyof ScheduleData, val: any) => {
     let newData = { ...value, [field]: val };
 
+    // ── INTERCEPT & ENFORCE PICKUP DATE (RULE 3 FIX) ──
+    if (field === "pickupDate" && isToday(val) && newData.pickupTime) {
+      const now = new Date();
+      const currentHrs = now.getHours();
+      const currentMins = now.getMinutes();
+      const [selHrs, selMins] = newData.pickupTime.split(":").map(Number);
+      
+      if (selHrs < currentHrs || (selHrs === currentHrs && selMins < currentMins)) {
+        newData.pickupTime = `${String(currentHrs).padStart(2, "0")}:${String(currentMins).padStart(2, "0")}`;
+        
+        // Push dropoff time based on snapped pickup time
+        const newDropoff = new Date(val);
+        newDropoff.setHours(currentHrs, currentMins + tripDuration, 0, 0);
+        newData.dropoffDate = newDropoff;
+        newData.dropoffTime = `${String(newDropoff.getHours()).padStart(2, "0")}:${String(newDropoff.getMinutes()).padStart(2, "0")}`;
+      }
+    }
+
     // ── INTERCEPT & ENFORCE PICKUP TIME (RULE 3) ──
     if (field === "pickupTime" && newData.pickupDate && isToday(newData.pickupDate)) {
       const now = new Date();
@@ -51,7 +69,7 @@ export function SchedulePicker({ value, onChange }: SchedulePickerProps) {
       newData.dropoffTime = `${String(newDropoff.getHours()).padStart(2, "0")}:${String(newDropoff.getMinutes()).padStart(2, "0")}`;
     }
 
-    // ── INTERCEPT & ENFORCE DROPOFF TIME (RULES 4 & 5) ──
+    // ── INTERCEPT & ENFORCE DROPOFF TIME (RULES 4, 5 & 2-WAY BINDING) ──
     if (field === "dropoffTime" && newData.pickupDate && newData.pickupTime) {
       const [pHrs, pMins] = newData.pickupTime.split(":").map(Number);
       const minDropoff = new Date(newData.pickupDate);
@@ -70,7 +88,20 @@ export function SchedulePicker({ value, onChange }: SchedulePickerProps) {
             title: "Time Adjusted",
             description: `The earliest drop-off time is ${format(minDropoff, "MMM d, h:mm a")} for this trip.`,
           });
+        } else {
+          // Valid change! The user explicitly increased it. Auto-calculate the pickup time (2-way binding)
+          const newPickup = new Date(newData.dropoffDate || minDropoff);
+          newPickup.setHours(dHrs, dMins - tripDuration, 0, 0);
+          newData.pickupDate = newPickup;
+          newData.pickupTime = `${String(newPickup.getHours()).padStart(2, "0")}:${String(newPickup.getMinutes()).padStart(2, "0")}`;
         }
+      } else {
+          // Date is strictly > minDate. Time can be anything. Still adjust pick-up back!
+          const [dHrs, dMins] = String(val).split(":").map(Number);
+          const newPickup = new Date(newData.dropoffDate || minDropoff);
+          newPickup.setHours(dHrs, dMins - tripDuration, 0, 0);
+          newData.pickupDate = newPickup;
+          newData.pickupTime = `${String(newPickup.getHours()).padStart(2, "0")}:${String(newPickup.getMinutes()).padStart(2, "0")}`;
       }
     }
     
@@ -92,6 +123,13 @@ export function SchedulePicker({ value, onChange }: SchedulePickerProps) {
             title: "Date Adjusted",
             description: `Drop-off cannot be earlier than ${format(minDropoff, "MMM d, h:mm a")}.`,
           });
+      } else {
+         // Explicit date change, shift pick-up as well
+         const [dHrs, dMins] = newData.dropoffTime.split(":").map(Number);
+         const newPickup = new Date(val);
+         newPickup.setHours(dHrs, dMins - tripDuration, 0, 0);
+         newData.pickupDate = newPickup;
+         newData.pickupTime = `${String(newPickup.getHours()).padStart(2, "0")}:${String(newPickup.getMinutes()).padStart(2, "0")}`;
       }
     }
 

@@ -101,10 +101,37 @@ const Dashboard = () => {
     }));
   }, []);
 
-  const upcomingBookings = useMemo(() => {
-    return localBookings.filter(booking =>
+  const { currentBooking, scheduledBookings } = useMemo(() => {
+    const upcoming = localBookings.filter(booking =>
       booking.status === "pending" || booking.status === "accepted"
     );
+
+    const parseBookingDateTime = (booking: any) => {
+      if (!booking.date || !booking.time) return new Date();
+      return new Date(`${booking.date}T${booking.time}`);
+    };
+
+    const sortedUpcoming = [...upcoming].sort((a, b) => {
+      return parseBookingDateTime(a).getTime() - parseBookingDateTime(b).getTime();
+    });
+
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+    let currentBooking = null;
+    let scheduledBookings = [];
+
+    const earliestTodayIndex = sortedUpcoming.findIndex(b => b.date && b.date.startsWith(todayStr));
+
+    if (earliestTodayIndex !== -1) {
+      currentBooking = sortedUpcoming[earliestTodayIndex];
+      scheduledBookings = [
+        ...sortedUpcoming.slice(0, earliestTodayIndex),
+        ...sortedUpcoming.slice(earliestTodayIndex + 1)
+      ];
+    } else {
+      scheduledBookings = sortedUpcoming;
+    }
+
+    return { currentBooking, scheduledBookings };
   }, [localBookings]);
 
   const completedBookings = localBookings.filter(booking => booking.status === "completed");
@@ -197,12 +224,14 @@ const Dashboard = () => {
               <div className="space-y-8">
                 <div>
                   <h2 className="text-2xl font-bold mb-4">Current Booking</h2>
-                  {upcomingBookings.length > 0 ? (
+                  {currentBooking ? (
                     <div className="space-y-4">
-                      {upcomingBookings.map((booking: any) => (
-                        <Card key={booking._id}>
-                          <CardContent className="p-6">
-                            <div className="flex flex-col md:flex-row">
+                      {(() => {
+                        const booking = currentBooking;
+                        return (
+                          <Card key={booking._id}>
+                            <CardContent className="p-6">
+                              <div className="flex flex-col md:flex-row">
                               {/* Guide info */}
                               <div className="md:w-1/4 mb-4 md:mb-0">
                                 <div className="flex items-center space-x-4">
@@ -313,7 +342,8 @@ const Dashboard = () => {
                             </div>
                           </CardContent>
                         </Card>
-                      ))}
+                        );
+                      })()}
                     </div>
                   ) : (
                     <Card>
@@ -332,9 +362,35 @@ const Dashboard = () => {
                   {/* ── SCHEDULED BOOKINGS PLACEHOLDER ── */}
                   <div className="mt-12 mb-8">
                     <h2 className="text-2xl font-bold mb-4">Scheduled Bookings</h2>
-                    <div className="p-8 text-center border-2 border-dashed rounded-xl bg-gray-50">
-                      <p className="text-gray-500">You'll find your future and scheduled bookings here</p>
-                    </div>
+                    {scheduledBookings.length > 0 ? (
+                      <div className="space-y-4">
+                        {scheduledBookings.map((booking: any) => (
+                          <Card key={booking._id} className="bg-gray-50/50">
+                            <CardContent className="p-6">
+                              <div className="flex flex-col md:flex-row justify-between items-center">
+                                <div className="space-y-2">
+                                  <div className="flex items-center text-gray-500 text-sm">
+                                    <Calendar className="w-4 h-4 mr-2" />
+                                    {format(new Date(booking.date), "MMM d, yyyy")} at {format(parseISO(`1970-01-01T${booking.time}`), "h:mm a")}
+                                  </div>
+                                  <div className="flex items-center">
+                                    <MapPin className="w-4 h-4 mr-2 text-blue-500" />
+                                    <span className="font-medium">{booking.pickupLocation}</span>
+                                  </div>
+                                </div>
+                                <span className="mt-4 md:mt-0 text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
+                                  {booking.service}
+                                </span>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center border-2 border-dashed rounded-xl bg-gray-50">
+                        <p className="text-gray-500">You'll find your future and scheduled bookings here</p>
+                      </div>
+                    )}
                   </div>
 
                   <h2 className="text-2xl font-bold mb-4">Past Bookings</h2>

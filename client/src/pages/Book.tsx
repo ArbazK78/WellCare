@@ -111,9 +111,9 @@ const Book = () => {
   const [modePopoverOpen, setModePopoverOpen] = useState(false);
 
   const [scheduleData, setScheduleData] = useState<ScheduleData>({
-    pickupDate: undefined,
+    pickupDate: new Date(),
     pickupTime: "",
-    dropoffDate: undefined,
+    dropoffDate: new Date(),
     dropoffTime: "",
   });
 
@@ -211,60 +211,61 @@ const Book = () => {
           <p className="text-center text-gray-500 mb-6">Hospital assistance, made simple</p>
 
           {/* ── Booking Mode Dropdown ── */}
-          <div className="flex justify-center mb-8">
-            <Popover open={modePopoverOpen} onOpenChange={setModePopoverOpen}>
-              <PopoverTrigger asChild>
-                <button className={cn(
-                  "flex items-center gap-2 px-5 py-2.5 rounded-full border shadow-sm transition-all text-sm font-medium",
-                  bookingMode === 'schedule' ? "bg-white border-blue-200 text-blue-700" : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
-                )}>
-                  {bookingMode === 'now' ? <Clock className="h-4 w-4" /> : <Calendar className="h-4 w-4" />}
-                  {bookingMode === 'now' ? 'Pick-up Now' : 'Pick-up Later'}
-                  <ChevronDown className="h-4 w-4 ml-1 opacity-50" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[320px] p-4" align="center">
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900 text-sm">When do you need the guide?</h4>
-                  <div className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => setTempBookingMode('now')}
-                      className={cn("w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-all", tempBookingMode === 'now' ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-blue-300")}
+          {step === 1 && (
+            <div className="flex justify-center mb-8">
+              <Popover open={modePopoverOpen} onOpenChange={setModePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <button className={cn(
+                    "flex items-center gap-2 px-5 py-2.5 rounded-full border shadow-sm transition-all text-sm font-medium",
+                    bookingMode === 'schedule' ? "bg-white border-blue-200 text-blue-700" : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                  )}>
+                    {bookingMode === 'now' ? <Clock className="h-4 w-4" /> : <Calendar className="h-4 w-4" />}
+                    {bookingMode === 'now' ? 'Pick-up Now' : 'Pick-up Later'}
+                    <ChevronDown className="h-4 w-4 ml-1 opacity-50" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[320px] p-4" align="center">
+                  <div className="space-y-4">
+                    <h4 className="font-semibold text-gray-900 text-sm">When do you need the guide?</h4>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => setTempBookingMode('now')}
+                        className={cn("w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-all", tempBookingMode === 'now' ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-blue-300")}
+                      >
+                        <Clock className={cn("h-5 w-5 mt-0.5", tempBookingMode === 'now' ? "text-blue-600" : "text-gray-500")} />
+                        <div>
+                          <p className={cn("font-medium", tempBookingMode === 'now' ? "text-blue-700" : "text-gray-900")}>Now</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Request a booking for instant guide</p>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTempBookingMode('schedule')}
+                        className={cn("w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-all", tempBookingMode === 'schedule' ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-blue-300")}
+                      >
+                        <Calendar className={cn("h-5 w-5 mt-0.5", tempBookingMode === 'schedule' ? "text-blue-600" : "text-gray-500")} />
+                        <div>
+                          <p className={cn("font-medium", tempBookingMode === 'schedule' ? "text-blue-700" : "text-gray-900")}>Schedule Later</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Reserve for extra peace of mind</p>
+                        </div>
+                      </button>
+                    </div>
+                    <Button
+                      className="w-full mt-2"
+                      onClick={() => {
+                        setBookingMode(tempBookingMode);
+                        setModePopoverOpen(false);
+                        setStep(1); 
+                      }}
                     >
-                      <Clock className={cn("h-5 w-5 mt-0.5", tempBookingMode === 'now' ? "text-blue-600" : "text-gray-500")} />
-                      <div>
-                        <p className={cn("font-medium", tempBookingMode === 'now' ? "text-blue-700" : "text-gray-900")}>Now</p>
-                        <p className="text-xs text-gray-500 mt-0.5">Request a booking for instant guide</p>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTempBookingMode('schedule')}
-                      className={cn("w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-all", tempBookingMode === 'schedule' ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-blue-300")}
-                    >
-                      <Calendar className={cn("h-5 w-5 mt-0.5", tempBookingMode === 'schedule' ? "text-blue-600" : "text-gray-500")} />
-                      <div>
-                        <p className={cn("font-medium", tempBookingMode === 'schedule' ? "text-blue-700" : "text-gray-900")}>Schedule Later</p>
-                        <p className="text-xs text-gray-500 mt-0.5">Reserve for extra peace of mind</p>
-                      </div>
-                    </button>
+                      Done
+                    </Button>
                   </div>
-                  <Button
-                    className="w-full mt-2"
-                    onClick={() => {
-                      setBookingMode(tempBookingMode);
-                      setModePopoverOpen(false);
-                      // If switching mode, reset step to 1 to prevent getting stuck in a missing step
-                      setStep(1); 
-                    }}
-                  >
-                    Done
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
 
           <StepIndicator 
             current={step} 
