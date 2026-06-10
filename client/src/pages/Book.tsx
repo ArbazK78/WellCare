@@ -24,14 +24,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { SchedulePicker, ScheduleData } from "@/components/SchedulePicker";
 import { cn } from "@/lib/utils";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import api from "@/lib/api";
 
 // ─── Step indicator ──────────────────────────────────────────────────────────
-const steps = ["Your Details", "Choose Vehicle"];
-
-const StepIndicator = ({ current }: { current: number }) => (
+const StepIndicator = ({ current, steps }: { current: number, steps: string[] }) => (
   <div className="flex items-center justify-center gap-0 mb-8">
     {steps.map((label, idx) => {
       const stepNum = idx + 1;
@@ -107,8 +106,16 @@ const Book = () => {
   const { refreshBookings } = useBookings();
 
   const [step, setStep] = useState(1);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [dateOpen, setDateOpen] = useState(false);
+  const [bookingMode, setBookingMode] = useState<"now" | "schedule">("now");
+  const [tempBookingMode, setTempBookingMode] = useState<"now" | "schedule">("now");
+  const [modePopoverOpen, setModePopoverOpen] = useState(false);
+
+  const [scheduleData, setScheduleData] = useState<ScheduleData>({
+    pickupDate: undefined,
+    pickupTime: "",
+    dropoffDate: undefined,
+    dropoffTime: "",
+  });
 
   const [formData, setFormData] = useState({
     name:               userName || "",
@@ -118,23 +125,13 @@ const Book = () => {
     destinationAddress: "",
     dropBack:           false,
     service:            "",
-    date:               "",
-    time:               "",
     waitingRequired:    false,
     waitingHours:       1,
     vehicleType:        "" as "scooter" | "cab" | "",
   });
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
   const handleChange = (field: string, value: string | boolean | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleDateSelect = (date: Date | undefined) => {
-    setSelectedDate(date);
-    if (date) handleChange("date", format(date, "yyyy-MM-dd"));
   };
 
   // ── Active booking guard ──
@@ -163,9 +160,7 @@ const Book = () => {
     formData.phone.trim() &&
     formData.pickupLocation.trim() &&
     formData.destinationAddress.trim() &&
-    formData.service &&
-    formData.date &&
-    formData.time;
+    formData.service;
 
   // ── Submit ──
   const handleSubmit = async (e: React.FormEvent) => {
@@ -188,8 +183,8 @@ const Book = () => {
       const response = await api.post("/bookings", {
         service:            bookingService,
         name:               userName || formData.name,
-        date:               formData.date,
-        time:               formData.time,
+        date:               bookingMode === 'schedule' && scheduleData.pickupDate ? format(scheduleData.pickupDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"), 
+        time:               bookingMode === 'schedule' && scheduleData.pickupTime ? scheduleData.pickupTime : format(new Date(), "HH:mm"), 
         pickupLocation:     formData.pickupLocation,
         destinationAddress: formData.destinationAddress,
         vehicleType:        formData.vehicleType,
@@ -199,10 +194,7 @@ const Book = () => {
 
       if (response.status === 201) {
         await refreshBookings();
-        toast({ title: "Booking Request Sent", description: "Your booking request has been received." });
-        navigate(`/booking-confirmation/${response.data._id}`, {
-          state: { bookingData: response.data },
-        });
+        navigate(`/finding-guide/${response.data._id}`);
       }
     } catch (error: any) {
       console.error("❌ Booking failed:", error);
@@ -216,17 +208,78 @@ const Book = () => {
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto">
           <h1 className="text-3xl font-bold text-center mb-2">Book a Guide</h1>
-          <p className="text-center text-gray-500 mb-8">Hospital assistance, made simple</p>
+          <p className="text-center text-gray-500 mb-6">Hospital assistance, made simple</p>
 
-          <StepIndicator current={step} />
+          {/* ── Booking Mode Dropdown ── */}
+          <div className="flex justify-center mb-8">
+            <Popover open={modePopoverOpen} onOpenChange={setModePopoverOpen}>
+              <PopoverTrigger asChild>
+                <button className={cn(
+                  "flex items-center gap-2 px-5 py-2.5 rounded-full border shadow-sm transition-all text-sm font-medium",
+                  bookingMode === 'schedule' ? "bg-white border-blue-200 text-blue-700" : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                )}>
+                  {bookingMode === 'now' ? <Clock className="h-4 w-4" /> : <Calendar className="h-4 w-4" />}
+                  {bookingMode === 'now' ? 'Pick-up Now' : 'Pick-up Later'}
+                  <ChevronDown className="h-4 w-4 ml-1 opacity-50" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[320px] p-4" align="center">
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-gray-900 text-sm">When do you need the guide?</h4>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setTempBookingMode('now')}
+                      className={cn("w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-all", tempBookingMode === 'now' ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-blue-300")}
+                    >
+                      <Clock className={cn("h-5 w-5 mt-0.5", tempBookingMode === 'now' ? "text-blue-600" : "text-gray-500")} />
+                      <div>
+                        <p className={cn("font-medium", tempBookingMode === 'now' ? "text-blue-700" : "text-gray-900")}>Now</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Request a booking for instant guide</p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTempBookingMode('schedule')}
+                      className={cn("w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-all", tempBookingMode === 'schedule' ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-blue-300")}
+                    >
+                      <Calendar className={cn("h-5 w-5 mt-0.5", tempBookingMode === 'schedule' ? "text-blue-600" : "text-gray-500")} />
+                      <div>
+                        <p className={cn("font-medium", tempBookingMode === 'schedule' ? "text-blue-700" : "text-gray-900")}>Schedule Later</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Reserve for extra peace of mind</p>
+                      </div>
+                    </button>
+                  </div>
+                  <Button
+                    className="w-full mt-2"
+                    onClick={() => {
+                      setBookingMode(tempBookingMode);
+                      setModePopoverOpen(false);
+                      // If switching mode, reset step to 1 to prevent getting stuck in a missing step
+                      setStep(1); 
+                    }}
+                  >
+                    Done
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <StepIndicator 
+            current={step} 
+            steps={bookingMode === 'now' ? ["Your Details", "Choose Vehicle"] : ["Your Details", "Choose Date", "Choose Vehicle"]} 
+          />
 
           <Card>
             <CardHeader>
               <CardTitle className="text-xl">
-                {step === 1 ? "Your Details & Journey" : "Choose Your Vehicle"}
+                {step === 1 ? "Your Details & Journey" : 
+                 step === 2 && bookingMode === 'schedule' ? "Choose Date & Time" :
+                 "Choose Your Vehicle"}
               </CardTitle>
-              {step === 2 && (
-                <p className="text-sm text-gray-500">
+              {step === (bookingMode === 'schedule' ? 3 : 2) && (
+                <p className="text-sm text-gray-500 mt-1">
                   Your guide will arrive in the selected vehicle type to pick you up.
                 </p>
               )}
@@ -358,60 +411,7 @@ const Book = () => {
                         </Select>
                       </div>
 
-                      <FieldGroup className="flex-row items-end gap-3">
-                        <Field>
-                          <FieldLabel htmlFor="date-picker">
-                            <span className="flex items-center gap-1.5">
-                              <Calendar className="h-4 w-4" /> Date
-                            </span>
-                          </FieldLabel>
-                          <Popover open={dateOpen} onOpenChange={setDateOpen}>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                id="date-picker"
-                                className={cn(
-                                  "w-40 justify-between font-normal",
-                                  !selectedDate && "text-muted-foreground"
-                                )}
-                              >
-                                {selectedDate ? format(selectedDate, "d MMM yyyy") : "Select date"}
-                                <ChevronDown className="h-4 w-4 opacity-50" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-                              <CalendarComponent
-                                mode="single"
-                                selected={selectedDate}
-                                captionLayout="dropdown"
-                                defaultMonth={selectedDate || today}
-                                fromDate={today}
-                                onSelect={(date) => {
-                                  handleDateSelect(date);
-                                  setDateOpen(false);
-                                }}
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </Field>
-
-                        <Field className="w-36">
-                          <FieldLabel htmlFor="time-picker">
-                            <span className="flex items-center gap-1.5">
-                              <Clock className="h-4 w-4" /> Time
-                            </span>
-                          </FieldLabel>
-                          <input
-                            type="time"
-                            id="time-picker"
-                            step="60"
-                            value={formData.time}
-                            onChange={(e) => handleChange("time", e.target.value)}
-                            required
-                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                          />
-                        </Field>
-                      </FieldGroup>
+                        {/* Date and Time picker removed for Phase 1. */}
 
                       <div className="space-y-2">
                         <div className="flex items-center space-x-2">
@@ -456,13 +456,34 @@ const Book = () => {
                         if (allowed) setStep(2);
                       }}
                     >
-                      Continue → Choose Vehicle
+                      Next
                     </Button>
                   </div>
                 )}
 
-                {/* ── STEP 2 — Vehicle Selection ── */}
-                {step === 2 && (
+                {/* ── STEP 2 — Choose Date (Schedule Mode) ── */}
+                {step === 2 && bookingMode === 'schedule' && (
+                  <div className="space-y-6 py-6">
+                    <SchedulePicker value={scheduleData} onChange={setScheduleData} />
+                    
+                    <div className="flex gap-4 pt-6 max-w-sm mx-auto">
+                      <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(1)}>
+                        ← Back
+                      </Button>
+                      <Button 
+                        type="button" 
+                        className="flex-1" 
+                        disabled={!scheduleData.pickupDate || !scheduleData.pickupTime || !scheduleData.dropoffDate || !scheduleData.dropoffTime}
+                        onClick={() => setStep(3)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── FINAL STEP — Vehicle Selection ── */}
+                {step === (bookingMode === 'schedule' ? 3 : 2) && (
                   <div className="space-y-6">
 
                     {/* Journey summary */}
@@ -508,7 +529,7 @@ const Book = () => {
                     </div>
 
                     <div className="flex gap-4 pt-2">
-                      <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(1)}>
+                      <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(bookingMode === 'schedule' ? 2 : 1)}>
                         ← Back
                       </Button>
                       <Button

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useGuideAuth } from "@/contexts/GuideAuthContext";
 import { Booking } from "@/contexts/BookingContext";
 import { useToast } from "@/hooks/use-toast";
@@ -9,13 +9,45 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Calendar, Clock, MapPin, User, Star, X, Check, Bell } from "lucide-react";
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import api from "@/lib/api";
+import { format, isToday, isTomorrow } from "date-fns";
+
+// ── Date / time formatters (consistent with customer Dashboard) ─────────────
+const ordinalSuffix = (d: number) => {
+  if (d > 3 && d < 21) return 'th';
+  switch (d % 10) { case 1: return 'st'; case 2: return 'nd'; case 3: return 'rd'; default: return 'th'; }
+};
+
+const formatBookingDate = (raw: string): string => {
+  try {
+    const date = new Date(raw);
+    if (isNaN(date.getTime())) return raw;
+    if (isToday(date))    return 'Today';
+    if (isTomorrow(date)) return 'Tomorrow';
+    const d = date.getDate();
+    return `${d}${ordinalSuffix(d)} ${format(date, 'MMMM, yyyy')}`;
+  } catch { return raw; }
+};
+
+const formatBookingTime = (raw: string): string => {
+  try {
+    if (!raw) return raw;
+    const [hStr, mStr] = raw.split(':');
+    const h = parseInt(hStr, 10), m = parseInt(mStr, 10);
+    if (isNaN(h) || isNaN(m)) return raw;
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+  } catch { return raw; }
+};
+
 
 const GuideDashboard = () => {
   const { currentGuide } = useGuideAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,62 +59,44 @@ const GuideDashboard = () => {
     return `${names[0].charAt(0)}${names[names.length - 1].charAt(0)}`;
   };
 
-  useEffect(() => {
-    // Fetch bookings from backend API instead of localStorage
-    const fetchBookings = async () => {
-      if (!currentGuide) {
-        setLoading(false);
-        return;
-      }
+  // ── Fetch all guide bookings (pending / accepted / completed) ─────────────
+  const fetchBookings = useCallback(async () => {
+    if (!currentGuide) { setLoading(false); return; }
 
-      try {
-        const token = localStorage.getItem('guide_token');
-        if (!token) {
-          console.warn('⚠️ No guide token found');
-          setLoading(false);
-          return;
-        }
+    try {
+      const token = localStorage.getItem('guide_token');
+      if (!token) { setLoading(false); return; }
 
-        const headers = { Authorization: `Bearer ${token}` };
-        
-        console.log('🔄 Fetching guide bookings from API...');
-        
-        // Fetch all booking types in parallel
-        const [pendingRes, acceptedRes, completedRes] = await Promise.all([
-          api.get('/bookings/guide/pending', { headers }),
-          api.get('/bookings/guide/accepted', { headers }),
-          api.get('/bookings/guide/completed', { headers })
-        ]);
-        
-        // Combine all bookings
-        const allBookings = [
-          ...pendingRes.data,
-          ...acceptedRes.data,
-          ...completedRes.data
-        ];
-        
-        console.log('✅ Fetched bookings:', {
-          pending: pendingRes.data.length,
-          accepted: acceptedRes.data.length,
-          completed: completedRes.data.length,
-          total: allBookings.length
-        });
-        
-        setBookings(allBookings);
-      } catch (error) {
-        console.error('❌ Error fetching guide bookings:', error);
-        toast({
-          title: "Error loading bookings",
-          description: "Failed to load your bookings. Please try again.",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchBookings();
+      const headers = { Authorization: `Bearer ${token}` };
+      const [pendingRes, acceptedRes, completedRes] = await Promise.all([
+        api.get('/bookings/guide/pending',   { headers }),
+        api.get('/bookings/guide/accepted',  { headers }),
+        api.get('/bookings/guide/completed', { headers }),
+      ]);
+
+      setBookings([
+        ...pendingRes.data,
+        ...acceptedRes.data,
+        ...completedRes.data,
+      ]);
+    } catch (error) {
+      console.error('❌ Error fetching guide bookings:', error);
+      toast({ title: "Error loading bookings", description: "Failed to load your bookings.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   }, [currentGuide, toast]);
+
+  // Initial fetch on mount / currentGuide change
+  useEffect(() => { fetchBookings(); }, [fetchBookings]);
+
+  // Re-fetch when GuideLayout signals an acceptance (state.refresh changes)
+  useEffect(() => {
+    if (location.state?.refresh) {
+      fetchBookings();
+    }
+  }, [location.state?.refresh]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   // Filter bookings by status
   const pendingBookings = bookings.filter(booking => booking.status === "pending");
@@ -200,7 +214,7 @@ const GuideDashboard = () => {
               )}
             </CardTitle>
             <CardDescription>
-              {booking.service} on {booking.date} at {booking.time}
+              {booking.service} · {formatBookingDate(booking.date)} at {formatBookingTime(booking.time)}
             </CardDescription>
           </div>
           <div className="text-right">
@@ -249,12 +263,11 @@ const GuideDashboard = () => {
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center">
               <Calendar className="h-4 w-4 mr-2 text-gray-500" />
-              <span>{booking.date}</span>
+              <span>{formatBookingDate(booking.date)}</span>
             </div>
-            
             <div className="flex items-center">
               <Clock className="h-4 w-4 mr-2 text-gray-500" />
-              <span>{booking.time}</span>
+              <span>{formatBookingTime(booking.time)}</span>
             </div>
           </div>
           
@@ -351,50 +364,32 @@ const GuideDashboard = () => {
           </Card>
         )}
         
-        <Tabs defaultValue="pending">
+        <Tabs defaultValue="active">
           <TabsList className="mb-4">
-            <TabsTrigger value="pending" className="flex items-center">
-              <Bell className="h-4 w-4 mr-1" />
-              Pending Requests ({pendingBookings.length})
+            <TabsTrigger value="active" className="flex items-center">
+              <Check className="h-4 w-4 mr-1 text-green-500" />
+              Active ({acceptedBookings.length})
             </TabsTrigger>
-            <TabsTrigger value="accepted" className="flex items-center">
-              <Check className="h-4 w-4 mr-1" />
-              Accepted Bookings ({acceptedBookings.length})
+            <TabsTrigger value="scheduled" className="flex items-center">
+              <Bell className="h-4 w-4 mr-1" />
+              Scheduled
             </TabsTrigger>
             <TabsTrigger value="completed" className="flex items-center">
-              <Check className="h-4 w-4 mr-1 text-green-500" />
-              Completed Bookings ({completedBookings.length})
+              <Check className="h-4 w-4 mr-1 text-gray-400" />
+              Completed ({completedBookings.length})
             </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="pending">
-            {loading ? (
-              <div className="text-center py-8">Loading...</div>
-            ) : pendingBookings.length === 0 ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>No Pending Booking Requests</CardTitle>
-                  <CardDescription>
-                    You don't have any pending booking requests at the moment.
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            ) : (
-              pendingBookings.map(booking => (
-                <BookingCard key={booking._id} booking={booking} isPending={true} />
-              ))
-            )}
-          </TabsContent>
-          
-          <TabsContent value="accepted">
+          {/* ── Active (accepted) bookings ─────────────────────────────────── */}
+          <TabsContent value="active">
             {loading ? (
               <div className="text-center py-8">Loading...</div>
             ) : acceptedBookings.length === 0 ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>No Accepted Bookings</CardTitle>
+                  <CardTitle>No Active Bookings</CardTitle>
                   <CardDescription>
-                    You don't have any accepted bookings at the moment.
+                    You don't have any active bookings right now. Go online to start receiving requests.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -405,6 +400,19 @@ const GuideDashboard = () => {
             )}
           </TabsContent>
           
+          {/* ── Scheduled — reserved for future pre-planned bookings ─────────── */}
+          <TabsContent value="scheduled">
+            <Card>
+              <CardHeader>
+                <CardTitle>Scheduled Bookings</CardTitle>
+                <CardDescription>
+                  Pre-planned and schedule-based bookings will appear here. Coming soon.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </TabsContent>
+          
+          {/* ── Completed bookings ────────────────────────────────────────────── */}
           <TabsContent value="completed">
             {loading ? (
               <div className="text-center py-8">Loading...</div>
@@ -424,6 +432,7 @@ const GuideDashboard = () => {
             )}
           </TabsContent>
         </Tabs>
+
       </div>
     </div>
   );

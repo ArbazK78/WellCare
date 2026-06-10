@@ -20,6 +20,7 @@ import Guides from "./pages/Guides";
 import Dashboard from "./pages/Dashboard";
 import PhoneVerification from "./pages/PhoneVerification";
 import BookingConfirmationPage from "./pages/BookingConfirmationPage";
+import FindingGuide from "./pages/FindingGuide";
 
 import GuideRegister from "./pages/guide/GuideRegister";
 import GuideLogin from "./pages/guide/GuideLogin";
@@ -76,6 +77,10 @@ const AppRoutes = () => {
         } />
         <Route path="/booking-confirmation/:bookingId" element={
           <ProtectedRoute><BookingConfirmationPage /></ProtectedRoute>
+        } />
+        {/* Finding Guide — live loader shown after booking is created */}
+        <Route path="/finding-guide/:bookingId" element={
+          <ProtectedRoute><FindingGuide /></ProtectedRoute>
         } />
 
         {/* ── Admin routes ──────────────────────────────────────────────── */}

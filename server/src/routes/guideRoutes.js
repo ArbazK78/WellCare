@@ -119,5 +119,38 @@ router.put('/:id/status', verifyAdminToken, async (req, res) => {
 
 
 
+// PUT /api/guides/online-status
+// Guide toggles their own online/offline availability.
+// isOnline=true → guide will receive booking notifications (sound + popup).
+// isOnline=false → guide is invisible to the notification system.
+router.put('/online-status', verifyGuideToken, async (req, res) => {
+  try {
+    const { isOnline } = req.body;
+    if (typeof isOnline !== 'boolean') {
+      return res.status(400).json({ message: 'isOnline must be a boolean' });
+    }
+
+    const update = {
+      isOnline,
+      ...(isOnline ? { lastOnlineAt: new Date() } : {}),
+    };
+
+    const guide = await Guide.findByIdAndUpdate(
+      req.guide.id,
+      { $set: update },
+      { new: true, select: '-password' }
+    );
+
+    if (!guide) return res.status(404).json({ message: 'Guide not found' });
+
+    console.log(`📡 Guide ${guide.name} is now ${isOnline ? 'ONLINE 🟢' : 'OFFLINE 🔴'}`);
+    res.json({ isOnline: guide.isOnline, lastOnlineAt: guide.lastOnlineAt });
+  } catch (err) {
+    console.error('❌ Error updating online status:', err);
+    res.status(500).json({ message: 'Failed to update online status' });
+  }
+});
+
 module.exports = router;
+
 

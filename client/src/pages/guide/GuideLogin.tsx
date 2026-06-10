@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useGuideAuth } from "@/contexts/GuideAuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -28,15 +28,24 @@ import {
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const GuideLogin = () => {
-  const { guideLogin } = useGuideAuth();
+  const { guideLogin, isAuthenticated, isAuthLoading } = useGuideAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Redirect already-authenticated guides away from the login page
+  const returnUrl = (location.state as any)?.returnUrl || "/guide/dashboard";
+  useEffect(() => {
+    if (!isAuthLoading && isAuthenticated) {
+      navigate(returnUrl, { replace: true });
+    }
+  }, [isAuthLoading, isAuthenticated, navigate, returnUrl]);
+
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
+
   // Forgot password states
   const [forgotPhone, setForgotPhone] = useState("");
   const [isSendingOTP, setIsSendingOTP] = useState(false);
@@ -46,13 +55,10 @@ const GuideLogin = () => {
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
-  // New state to control the dialog visibility
-const [isForgotPasswordDialogOpen, setIsForgotPasswordDialogOpen] = useState(false); 
-
-  // Get the return URL from location state or default to guide dashboard
-  const returnUrl = location.state?.returnUrl || "/guide/dashboard";
+  const [isForgotPasswordDialogOpen, setIsForgotPasswordDialogOpen] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
+
     e.preventDefault();
     setIsLoading(true);
   

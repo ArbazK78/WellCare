@@ -13,6 +13,7 @@ const {
   getGuidePendingBookings,
   getGuideAcceptedBookings,
   getGuideCompletedBookings,
+  getGuideRecentCancellations,
   updateBookingStatus
 } = bookingController;
 
@@ -30,9 +31,11 @@ router.get("/active", verifyUserToken, bookingController.checkActiveBooking); //
 router.get('/guide/pending', verifyGuideToken, getGuidePendingBookings); // Get guide's pending bookings
 router.get('/guide/accepted', verifyGuideToken, getGuideAcceptedBookings); // Get guide's accepted bookings
 router.get('/guide/completed', verifyGuideToken, getGuideCompletedBookings); // Get guide's completed bookings
+router.get('/guide/recent-cancellations', verifyGuideToken, getGuideRecentCancellations); // Poll for recent cancellations
 
-// DELETE /api/bookings/:bookingId - Cancel a specific booking
-router.delete("/:bookingId", verifyUserToken, bookingController.cancelBooking); // 👈 ADD THIS LINE
+// PUT /api/bookings/:bookingId/cancel - Cancel a specific booking
+router.put("/:bookingId/cancel", verifyUserToken, bookingController.cancelBooking); // 👈 Soft delete
+
 
 // PUT /api/bookings/:bookingId/status - Update booking status (accept/reject/complete)
 router.put('/:bookingId/status', verifyGuideToken, updateBookingStatus); // ✅ Status update endpoint

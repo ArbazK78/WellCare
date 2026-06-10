@@ -29,7 +29,13 @@ const guideSchema = new mongoose.Schema({
     enum: ['pending', 'approved', 'rejected'],
     default: 'pending'
   },
+  // Phase 4 — guide availability tracking
+  // Guides must explicitly toggle online; backend records the state
+  // so admin can see active guides and future booking routing can target online-only guides
+  isOnline: { type: Boolean, default: false },
+  lastOnlineAt: { type: Date },
   registeredAt: { type: Date, default: Date.now }
+
 });
 
 // Hash password before saving

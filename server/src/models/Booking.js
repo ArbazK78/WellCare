@@ -74,6 +74,19 @@ const BookingSchema = new mongoose.Schema({
     enum: ['pending', 'accepted', 'rejected', 'cancelled', 'completed'],
     default: 'pending',
   },
+  cancelReason: {
+    type: String,
+    required: false,
+  },
+  cancelledBy: {
+    type: String,
+    enum: ['customer', 'guide', 'system'],
+    required: false,
+  },
+  cancelledAt: {
+    type: Date,
+    required: false,
+  },
 });
 
 module.exports = mongoose.model('Booking', BookingSchema);

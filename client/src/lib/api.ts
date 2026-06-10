@@ -12,11 +12,19 @@ api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig): Promise<InternalAxiosRequestConfig> => {
     let token: string | null = null;
 
-    if (config.url?.startsWith('/guides')) {
-      token = localStorage.getItem('guide_token');
-    } else {
-      token = localStorage.getItem('userToken');
-    }
+    // Guide endpoints need guide_token:
+    //   /guides/*                           (guide profile, auth, status)
+    //   /bookings/guide/*                   (guide's pending/accepted/completed)
+    //   PUT /bookings/:id/status            (guide accepts/rejects/completes a booking)
+    const isGuideEndpoint =
+      config.url?.startsWith('/guides') ||
+      config.url?.startsWith('/bookings/guide') ||
+      (config.method === 'put' && /^\/bookings\/[^/]+\/status$/.test(config.url ?? ''));
+
+    token = isGuideEndpoint
+      ? localStorage.getItem('guide_token')
+      : localStorage.getItem('userToken');
+
 
     console.log(`🔥 [Interceptor] Requesting: ${config.method} ${config.url}`);
     console.log(`🔑 [Interceptor] Selected Token: ${token ? token.slice(0, 10) + '...' : 'absent'}`);

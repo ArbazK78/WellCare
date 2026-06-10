@@ -25,23 +25,17 @@ exports.createBooking = async (req, res) => {
       waitingHours,
     } = req.body;
 
-    // Find all approved guides whose specialties include the requested service
-    const eligibleGuides = await Guide.find({
-      status: 'approved',
-      specialties: { $regex: new RegExp(service, 'i') },
-    }).select('_id');
+    // ALPHA: All approved guides are eligible for every booking.
+    // Specialty-based filtering was silently excluding guides whose profile
+    // specialties didn't exactly match the booked service string.
+    // TODO (post-Alpha): Re-introduce specialty + vehicleType matching once
+    // guide profiles are standardised and tested end-to-end.
+    const allApproved = await Guide.find({ status: 'approved' }).select('_id');
+    const eligibleGuideIds = allApproved.map(g => g._id);
 
-    let eligibleGuideIds = eligibleGuides.map(g => g._id);
-
-    // Fallback: broadcast to ALL approved guides if no specialty match found
     if (eligibleGuideIds.length === 0) {
-      console.warn(`⚠️ No guides found with specialty matching "${service}". Falling back to all approved guides.`);
-      const allApproved = await Guide.find({ status: 'approved' }).select('_id');
-      eligibleGuideIds = allApproved.map(g => g._id);
+      return res.status(400).json({ message: 'No approved guides available at the moment. Please try again later.' });
     }
-
-    // TODO (PENDING): Filter eligibleGuides further by vehicleType once
-    // guides have a vehicleType field on their profile.
 
     console.log(`📋 Booking service: "${service}" → ${eligibleGuideIds.length} eligible guide(s)`);
 
@@ -111,18 +105,50 @@ exports.checkActiveBooking = async (req, res) => {
 // ---------------------------------------------------------------------------
 exports.cancelBooking = async (req, res) => {
   const { bookingId } = req.params;
+  const { reason } = req.body;
 
   try {
-    const deletedBooking = await Booking.findByIdAndDelete(bookingId);
-
-    if (!deletedBooking) {
+    const booking = await Booking.findById(bookingId);
+    
+    if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
     }
+
+    booking.status = 'cancelled';
+    booking.cancelReason = reason || 'No reason provided';
+    booking.cancelledBy = 'customer';
+    booking.cancelledAt = new Date();
+    await booking.save();
 
     res.status(200).json({ message: 'Booking cancelled successfully' });
   } catch (error) {
     console.error('❌ Error cancelling booking:', error);
     res.status(500).json({ message: 'Server error while cancelling booking' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// GET RECENT CANCELLATIONS FOR GUIDE (Polled by Guide Dashboard)
+// ---------------------------------------------------------------------------
+exports.getGuideRecentCancellations = async (req, res) => {
+  try {
+    const guideId = req.guide.id;
+    // Look for bookings assigned to this guide that were cancelled in the last 2 minutes
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+
+    const cancelledBookings = await Booking.find({
+      guide: guideId,
+      status: 'cancelled',
+      cancelledBy: 'customer',
+      cancelledAt: { $gte: twoMinutesAgo },
+    })
+      .populate('customer', 'name phone')
+      .sort({ cancelledAt: -1 });
+
+    res.json(cancelledBookings);
+  } catch (error) {
+    console.error('❌ Error fetching recent cancellations for guide:', error);
+    res.status(500).json({ message: 'Server error while fetching recent cancellations' });
   }
 };
 

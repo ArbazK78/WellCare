@@ -8,12 +8,13 @@ type AuthContextType = {
   userPhone: string | null;
   userName: string | null;
   userEmail: string | null;
+  user: { _id: string; name: string; email: string; phone?: string; profilePicture?: string; createdAt?: string } | null;
   checkingAuth: boolean;
   login: (phone: string, name?: string, email?: string) => Promise<boolean>;
   updateProfile: (data: { name?: string; email?: string; phone?: string }) => Promise<boolean>;
   logout: () => void;
   register: (name: string, phone: string, email?: string) => Promise<boolean>;
-  setUser: (user: { _id: string; name: string; email: string; phone?: string; profilePicture?: string } | null) => void; // ✅ UPDATED TYPE TO INCLUDE phone
+  setUser: (user: { _id: string; name: string; email: string; phone?: string; profilePicture?: string; createdAt?: string } | null) => void;
 };
 
 
@@ -26,8 +27,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // ✅ Updated type for the full user object to include phone
-  const [user, setUserState] = useState<{ _id: string; name: string; email: string; phone?: string; profilePicture?: string } | null>(null);
+  // ✅ Updated type for the full user object to include phone and createdAt
+  const [user, setUserState] = useState<{ _id: string; name: string; email: string; phone?: string; profilePicture?: string; createdAt?: string } | null>(null);
 
   interface JwtPayload {
     userId: string;
@@ -64,8 +65,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUserName(data.name);
           setUserPhone(data.phone);
           setUserEmail(data.email);
-          // ✅ Update the full user object as well, including phone
-          setUserState({ _id: data._id, name: data.name, email: data.email, phone: data.phone });
+          // ✅ Update the full user object as well, including phone and createdAt
+          setUserState({ _id: data._id, name: data.name, email: data.email, phone: data.phone, createdAt: data.createdAt });
           console.log("✅ [AuthContext] User profile fetched:", data); // ADD THIS LINE
           console.log("✅ [AuthContext] userName set to:", data.name); // ADD THIS LINE
         })
@@ -92,8 +93,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserPhone(data.user.phone);
       setUserName(data.user.name);
       setUserEmail(data.user.email);
-      // ✅ Update the full user object on login, including phone
-      setUserState({ _id: data.user._id, name: data.user.name, email: data.user.email, phone: data.user.phone });
+      // ✅ Update the full user object on login, including phone and createdAt
+      setUserState({ _id: data.user._id, name: data.user.name, email: data.user.email, phone: data.user.phone, createdAt: data.user.createdAt });
       console.log("✅ [AuthContext] Login successful, user data:", data.user); // ADD THIS LINE
   console.log("✅ [AuthContext] userName set to:", data.user.name); // ADD THIS LINE
       return true;
@@ -115,8 +116,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserPhone(data.user.phone);
       setUserName(data.user.name);
       setUserEmail(data.user.email);
-      // ✅ Update the full user object on registration, including phone
-      setUserState({ _id: data.user._id, name: data.user.name, email: data.user.email, phone: data.user.phone });
+      // ✅ Update the full user object on registration, including phone and createdAt
+      setUserState({ _id: data.user._id, name: data.user.name, email: data.user.email, phone: data.user.phone, createdAt: data.user.createdAt });
       console.log("✅ [AuthContext] Login successful, user data:", data.user); // ADD THIS LINE
   console.log("✅ [AuthContext] userName set to:", data.user.name); // ADD THIS LINE
       return true;
@@ -136,8 +137,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserName(data.name);
       setUserPhone(data.phone);
       setUserEmail(data.email || "");
-      // ✅ Update the full user object on profile fetch, including phone
-      setUserState({ _id: data._id, name: data.name, email: data.email, phone: data.phone });
+      // ✅ Update the full user object on profile fetch, including phone and createdAt
+      setUserState({ _id: data._id, name: data.name, email: data.email, phone: data.phone, createdAt: data.createdAt });
     } catch (error) {
       console.error("❌ Failed to load user profile:", error);
     }
@@ -156,8 +157,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUserName(userData.name);
         setUserPhone(userData.phone);
         setUserEmail(userData.email);
-        // ✅ Update the full user object on profile update, including phone
-        setUserState({ _id: userData._id, name: userData.name, email: userData.email, phone: userData.phone });
+        // ✅ Update the full user object on profile update, including phone and createdAt
+        setUserState({ _id: userData._id, name: userData.name, email: userData.email, phone: userData.phone, createdAt: userData.createdAt });
         return true;
       }
       return false;
@@ -178,7 +179,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // ✅ The setUser function that will be passed in the context
-  const setUser = (newUser: { _id: string; name: string; email: string; phone?: string; profilePicture?: string } | null) => { // ✅ UPDATED TYPE HERE TOO
+  const setUser = (newUser: { _id: string; name: string; email: string; phone?: string; profilePicture?: string; createdAt?: string } | null) => {
     setUserState(newUser);
     setIsAuthenticated(!!newUser);
     if (newUser) {
@@ -199,6 +200,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         userPhone,
         userName,
         userEmail,
+        user,
         checkingAuth,
         login,
         logout,

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import api from "../utils/api";
+import api from "@/lib/api";
 import { useAuth } from "./AuthContext"; // Import useAuth
 
 export type BookingService = "Navigation Assistance" | "Heavy Lifting" | "Transport Assistance";
@@ -44,7 +44,7 @@ interface BookingContextType {
   getBookingsForGuide: (guideId: string | number) => Promise<Booking[]>;
   getBookingsForCustomer: () => Promise<Booking[]>;
   completeBooking: (_id: string) => Promise<boolean>;
-  cancelBooking: (_id: string) => Promise<boolean>;
+  cancelBooking: (_id: string, reason: string) => Promise<boolean>;
   acceptBooking: (_id: string) => Promise<boolean>;
   rejectBooking: (_id: string, reason?: string) => Promise<boolean>;
 }
@@ -206,10 +206,12 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const cancelBooking = async (_id: string) => {
+  const cancelBooking = async (_id: string, reason: string) => {
     try {
-      await api.delete(`/bookings/${_id}`);
-      setBookings(prev => prev.filter(booking => booking._id !== _id));
+      await api.put(`/bookings/${_id}/cancel`, { reason });
+      setBookings(prev => prev.map(booking => 
+        booking._id === _id ? { ...booking, status: "cancelled" } : booking
+      ));
       return true;
     } catch (error) {
       console.error("Error canceling booking:", error);

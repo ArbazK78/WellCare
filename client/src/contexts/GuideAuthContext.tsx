@@ -23,6 +23,8 @@ export type Guide = {
 
 type GuideAuthContextType = {
   isAuthenticated: boolean;
+  isAuthLoading: boolean;
+  isOnline: boolean;
   currentGuide: Guide | null;
   guideLogin: (phone: string, password: string) => Promise<"success" | "pending" | "rejected" | "invalid">;
   guideRegister: (phone: string, name: string, password: string, email?: string, location?: string,
@@ -31,15 +33,17 @@ type GuideAuthContextType = {
     bio?: string, profile_picture?: FileList, government_id?: FileList) => Promise<string>;
   guideLogout: () => void;
   getAllApprovedGuides: () => Promise<Guide[]>;
-  updateGuideProfile: (updatedData: Partial<Guide>) => Promise<void>; // <-- ✅ Add this
-
+  updateGuideProfile: (updatedData: Partial<Guide>) => Promise<void>;
+  toggleOnlineStatus: () => Promise<void>;
 };
 
 const GuideAuthContext = createContext<GuideAuthContextType | undefined>(undefined);
 
 export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [currentGuide, setCurrentGuide] = useState<Guide | null>(null);
+  const [isAuthLoading, setIsAuthLoading]     = useState<boolean>(true); // true until session restore attempt finishes
+  const [isOnline, setIsOnline]               = useState<boolean>(false);
+  const [currentGuide, setCurrentGuide]       = useState<Guide | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("guide_token");
@@ -52,6 +56,7 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
           });
           setIsAuthenticated(true);
           setCurrentGuide(data);
+          setIsOnline(data.isOnline ?? false); // Restore online status from DB
         } catch (error: any) {
           // Only clear the session on an explicit auth rejection (401).
           // Network errors, 500s, or timeouts should NOT log the guide out —
@@ -62,10 +67,15 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
           } else {
             console.warn("⚠️ Could not verify guide session (non-auth error). Keeping token.", error?.message);
           }
+        } finally {
+          setIsAuthLoading(false); // Session restore attempt is done either way
         }
       };
 
       fetchGuideData();
+    } else {
+      // No token — not loading, not authenticated
+      setIsAuthLoading(false);
     }
   }, []);
 
@@ -141,7 +151,19 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
   const guideLogout = () => {
     localStorage.removeItem("guide_token");
     setIsAuthenticated(false);
+    setIsOnline(false);
     setCurrentGuide(null);
+  };
+
+  const toggleOnlineStatus = async () => {
+    try {
+      const next = !isOnline;
+      const { data } = await api.put('/guides/online-status', { isOnline: next });
+      setIsOnline(data.isOnline);
+      console.log(`📡 Guide is now ${data.isOnline ? 'ONLINE 🟢' : 'OFFLINE 🔴'}`);
+    } catch (err) {
+      console.error('❌ Failed to update online status:', err);
+    }
   };
 
   const updateGuideProfile = async (updatedData: Partial<Guide>) => {
@@ -166,20 +188,20 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
     <GuideAuthContext.Provider
       value={{
         isAuthenticated,
+        isAuthLoading,
+        isOnline,
         currentGuide,
         guideLogin,
         guideRegister,
         guideLogout,
         getAllApprovedGuides,
-        updateGuideProfile // <-- ✅ Add this
-
+        updateGuideProfile,
+        toggleOnlineStatus,
       }}
     >
       {children}
     </GuideAuthContext.Provider>
   );
-
-  
 };
 
 

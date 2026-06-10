@@ -9,7 +9,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { CheckCircle2, Clock, MapPin, Calendar, User, Mail, Phone, X, PhoneCall, MessageCircle } from "lucide-react";
+import { CheckCircle2, Clock, MapPin, Calendar, User, Mail, Phone, X, PhoneCall, MessageCircle, AlertCircle } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Link } from "react-router-dom";
 import { useBookings } from "@/contexts/BookingContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
+import { useCustomerBookingSync } from "@/hooks/useCustomerBookingSync";
 
 // ── Date/time formatters ─────────────────────────────────────────────────────
 const ordinalSuffix = (d: number) => {
@@ -54,11 +56,26 @@ const formatBookingTime = (rawTime: string): string => {
 
 const Dashboard = () => {
   const { bookings, completeBooking, cancelBooking: contextCancelBooking } = useBookings();
-  const { userPhone, userName, userEmail, updateProfile } = useAuth();
+  const { userPhone, userName, userEmail, updateProfile, user } = useAuth();
   const { toast } = useToast();
 
+  const memberSince = user?.createdAt ? new Date(user.createdAt) : new Date();
+  const monthsDiff = Math.floor((new Date().getTime() - memberSince.getTime()) / (1000 * 60 * 60 * 24 * 30));
+  const monthsOnWellCare = Math.max(1, monthsDiff);
+
+  // Real-time booking status sync — polls every 8s, plays guide_assigned.wav on acceptance
+  useCustomerBookingSync();
+
   const [localBookings, setLocalBookings] = useState(bookings);
+
+  // Keep localBookings in sync when context refreshes (e.g. after guide accepts)
+  useEffect(() => {
+    setLocalBookings(bookings);
+  }, [bookings]);
+
   const [contactGuide, setContactGuide] = useState<{ name: string; phone: string } | null>(null);
+  const [cancelTarget, setCancelTarget]   = useState<string | null>(null);
+  const [cancelReason, setCancelReason]   = useState("");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [activeTab, setActiveTab] = useState("bookings");
   const [profileForm, setProfileForm] = useState({
@@ -134,25 +151,25 @@ const Dashboard = () => {
   };
 
   const handleCancelBooking = async (bookingId: string) => {
-    const isValidObjectId = /^[a-f\d]{24}$/i.test(bookingId);
-    if (!isValidObjectId) {
-      toast({ title: "Error", description: "Invalid booking ID. Please refresh and try again.", variant: "destructive" });
-      window.location.reload();
-      return;
-    }
+    // Opens the reason dialog; actual deletion happens in confirmCancel
+    setCancelTarget(bookingId);
+    setCancelReason("");
+  };
 
-    if (window.confirm("Are you sure you want to cancel this booking?")) {
-      try {
-        const response = await api.delete(`/bookings/${bookingId}`);
-        if (response.status === 200) {
-          toast({ title: "Booking Cancelled", description: "Your booking has been successfully cancelled." });
-          setLocalBookings(prev => prev.filter(b => b._id !== bookingId));
-        } else {
-          toast({ title: "Cancellation Failed", description: "Failed to cancel the booking. Please try again.", variant: "destructive" });
-        }
-      } catch (error: any) {
-        toast({ title: "Cancellation Error", description: error.message || "Something went wrong while cancelling.", variant: "destructive" });
+  const handleCancelConfirm = async () => {
+    if (!cancelTarget || !cancelReason) return;
+    
+    try {
+      const success = await contextCancelBooking(cancelTarget, cancelReason);
+      if (success) {
+        toast({ title: "Booking Cancelled", description: "Your booking has been successfully cancelled." });
+        setCancelTarget(null);
+        setCancelReason("");
+      } else {
+        toast({ title: "Cancellation Failed", description: "Failed to cancel the booking. Please try again.", variant: "destructive" });
       }
+    } catch (error: any) {
+      toast({ title: "Cancellation Error", description: error.message || "Something went wrong while cancelling.", variant: "destructive" });
     }
   };
 
@@ -179,7 +196,7 @@ const Dashboard = () => {
             <TabsContent value="bookings">
               <div className="space-y-8">
                 <div>
-                  <h2 className="text-2xl font-bold mb-4">Upcoming Bookings</h2>
+                  <h2 className="text-2xl font-bold mb-4">Current Booking</h2>
                   {upcomingBookings.length > 0 ? (
                     <div className="space-y-4">
                       {upcomingBookings.map((booking: any) => (
@@ -312,6 +329,14 @@ const Dashboard = () => {
 
                 {/* Past bookings */}
                 <div>
+                  {/* ── SCHEDULED BOOKINGS PLACEHOLDER ── */}
+                  <div className="mt-12 mb-8">
+                    <h2 className="text-2xl font-bold mb-4">Scheduled Bookings</h2>
+                    <div className="p-8 text-center border-2 border-dashed rounded-xl bg-gray-50">
+                      <p className="text-gray-500">You'll find your future and scheduled bookings here</p>
+                    </div>
+                  </div>
+
                   <h2 className="text-2xl font-bold mb-4">Past Bookings</h2>
                   {completedBookings.length > 0 ? (
                     <div className="space-y-4">
@@ -417,9 +442,24 @@ const Dashboard = () => {
                         </div>
                         <div>
                           <h3 className="text-xl font-medium">{userName || "Your Profile"}</h3>
-                          <p className="text-gray-500">
-                            Member since {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                          </p>
+                        </div>
+                      </div>
+
+                      {/* ── 3-PART PROFILE STATS ── */}
+                      <div className="grid grid-cols-3 gap-4 my-6">
+                        <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
+                          <div className="text-2xl font-bold text-blue-600">{completedBookings.length}</div>
+                          <div className="text-xs text-gray-500 uppercase font-medium mt-1">Trips</div>
+                        </div>
+                        <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
+                          <div className="text-2xl font-bold text-blue-600">4.8</div>
+                          <div className="text-xs text-gray-500 uppercase font-medium mt-1">Rating</div>
+                        </div>
+                        <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
+                          <div className="text-2xl font-bold text-blue-600">{monthsOnWellCare}</div>
+                          <div className="text-xs text-gray-500 uppercase font-medium mt-1">
+                            {monthsOnWellCare === 1 ? 'Month' : 'Months'}
+                          </div>
                         </div>
                       </div>
 
@@ -527,6 +567,58 @@ const Dashboard = () => {
           </Tabs>
         </div>
       </div>
+
+      {/* Cancel Reason Dialog */}
+      <Dialog open={!!cancelTarget} onOpenChange={(open) => { if (!open) { setCancelTarget(null); setCancelReason(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-red-500" />
+              Cancel Booking
+            </DialogTitle>
+            <DialogDescription>
+              Please let us know why you're cancelling. This helps us improve our service.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-3">
+            <RadioGroup value={cancelReason} onValueChange={setCancelReason} className="space-y-2">
+              {[
+                "Change of plans",
+                "Guide is taking too long",
+                "Booked by mistake",
+                "Found alternative transport",
+                "Emergency situation",
+                "Other",
+              ].map((reason) => (
+                <label
+                  key={reason}
+                  className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors hover:bg-gray-50 has-[:checked]:bg-red-50 has-[:checked]:border-red-300"
+                >
+                  <RadioGroupItem value={reason} id={reason} />
+                  <span className="text-sm">{reason}</span>
+                </label>
+              ))}
+            </RadioGroup>
+          </div>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => { setCancelTarget(null); setCancelReason(""); }}
+            >
+              Keep Booking
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              disabled={!cancelReason}
+              onClick={handleCancelConfirm}
+            >
+              Cancel Booking
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Contact Guide Dialog */}
       <Dialog open={!!contactGuide} onOpenChange={(open) => !open && setContactGuide(null)}>
