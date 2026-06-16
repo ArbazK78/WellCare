@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -136,14 +137,37 @@ const Book = () => {
 
   // ── Active booking guard ──
   const checkForActiveBooking = async (): Promise<boolean> => {
+    // If scheduling for later, bypass the active limit entirely!
+    if (bookingMode === 'schedule') {
+      return true;
+    }
+
     try {
       const token   = localStorage.getItem("userToken");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const response = await api.get("/bookings/active", { headers });
-      if (response.data.activeBooking) {
+      
+      const activeBookings = response.data.activeBookings || [];
+      
+      // Check if any active booking is happening "Today"
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      const hasCurrentBooking = activeBookings.some((b: any) => b.date && b.date.startsWith(todayStr));
+
+      if (hasCurrentBooking) {
         toast({
           title: "Booking Blocked",
-          description: "You already have an ongoing booking. Complete it to make a new request.",
+          description: "You already have an active booking. Book once you finish that or schedule a booking for later.",
+          action: (
+            <ToastAction 
+              altText="Schedule for later" 
+              onClick={() => {
+                setBookingMode('schedule');
+                setStep(2);
+              }}
+            >
+              Schedule for later
+            </ToastAction>
+          ),
         });
         return false;
       }

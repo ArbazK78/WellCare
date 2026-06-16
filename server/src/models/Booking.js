@@ -59,6 +59,23 @@ const BookingSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Guide',
   }],
+  // ── Waterfall Dispatch Fields ────────────────────────────────────────────
+  // Randomized queue of all matched guides
+  guideQueue: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Guide',
+  }],
+  // The single guide currently reviewing the offer
+  currentOfferedGuide: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Guide',
+    default: null,
+  },
+  // When the 15-second window closes for the current guide
+  offerExpiresAt: {
+    type: Date,
+    default: null,
+  },
   customer: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

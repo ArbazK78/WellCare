@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { CheckCircle2, Clock, MapPin, Calendar, User, Mail, Phone, X, PhoneCall, MessageCircle, AlertCircle } from "lucide-react";
+import { CheckCircle2, Clock, MapPin, Calendar, User, Mail, Phone, X, PhoneCall, MessageCircle, AlertCircle, ArrowRight } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Link } from "react-router-dom";
 import { useBookings } from "@/contexts/BookingContext";
@@ -78,6 +78,7 @@ const Dashboard = () => {
   const [cancelReason, setCancelReason]   = useState("");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [activeTab, setActiveTab] = useState("bookings");
+  const [selectedScheduledBooking, setSelectedScheduledBooking] = useState<any>(null);
   const [profileForm, setProfileForm] = useState({
     name: userName || "",
     email: userEmail || "",
@@ -206,9 +207,29 @@ const Dashboard = () => {
       style={{ overflowY: activeTab === 'profile' ? 'hidden' : 'auto' }}
     >
       <Navbar />
-      <div className="container mx-auto px-4 py-12">
-        <div className="max-w-4xl mx-auto">
-          <div className="mb-8">
+      {selectedScheduledBooking ? (
+        <div className="container mx-auto px-4 py-12">
+          <div className="max-w-4xl mx-auto flex flex-col items-start min-h-[60vh]">
+            <Button variant="ghost" onClick={() => setSelectedScheduledBooking(null)} className="mb-6 -ml-4 hover:bg-transparent hover:text-blue-600">
+              ← Back to Dashboard
+            </Button>
+            <Card className="w-full flex-1 flex flex-col items-center justify-center p-12 bg-white shadow-sm border-dashed border-2 border-gray-200">
+              <CardContent className="text-center p-0">
+                <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Calendar className="w-8 h-8 text-blue-500" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Details coming soon</h2>
+                <p className="text-gray-500 max-w-md mx-auto">
+                  We are preparing a full-page overview for your scheduled bookings. Check back shortly to see guide status, live tracking, and more options.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      ) : (
+        <div className="container mx-auto px-4 py-12">
+          <div className="max-w-4xl mx-auto">
+            <div className="mb-8">
             <h1 className="text-3xl font-bold mb-2">Your Dashboard</h1>
             <p className="text-gray-600">Manage your bookings and profile</p>
           </div>
@@ -373,14 +394,40 @@ const Dashboard = () => {
                                     <Calendar className="w-4 h-4 mr-2" />
                                     {format(new Date(booking.date), "MMM d, yyyy")} at {format(parseISO(`1970-01-01T${booking.time}`), "h:mm a")}
                                   </div>
-                                  <div className="flex items-center">
-                                    <MapPin className="w-4 h-4 mr-2 text-blue-500" />
-                                    <span className="font-medium">{booking.pickupLocation}</span>
+                                  <div className="flex items-start">
+                                    <MapPin className="w-4 h-4 mr-2 mt-0.5 text-blue-500 shrink-0" />
+                                    <div className="flex flex-col">
+                                      <span className="font-medium">
+                                        {booking.pickupLocation || booking.location}
+                                        {booking.destinationAddress && (
+                                          <>
+                                            <span className="mx-1 text-gray-400">→</span>
+                                            {booking.destinationAddress}
+                                          </>
+                                        )}
+                                      </span>
+                                      <div className="flex items-center gap-2 mt-2">
+                                        {booking.vehicleType && (
+                                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium">
+                                            {booking.vehicleType === "scooter" ? "🛵 Scooter" : "🚖 Cab"}
+                                          </span>
+                                        )}
+                                        {booking.dropBack && (
+                                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                                            🏠 Drop-back
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
-                                <span className="mt-4 md:mt-0 text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
-                                  {booking.service}
-                                </span>
+                                <Button 
+                                  variant="outline" 
+                                  className="mt-4 md:mt-0 rounded-full border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+                                  onClick={() => setSelectedScheduledBooking(booking)}
+                                >
+                                  Check Status <ArrowRight className="ml-2 w-4 h-4" />
+                                </Button>
                               </div>
                             </CardContent>
                           </Card>
@@ -623,6 +670,7 @@ const Dashboard = () => {
           </Tabs>
         </div>
       </div>
+      )}
 
       {/* Cancel Reason Dialog */}
       <Dialog open={!!cancelTarget} onOpenChange={(open) => { if (!open) { setCancelTarget(null); setCancelReason(""); } }}>

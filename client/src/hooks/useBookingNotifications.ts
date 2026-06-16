@@ -17,6 +17,7 @@ export type IncomingBooking = {
   };
   date: string;
   time: string;
+  offerExpiresAt?: string;
 };
 
 export type CancelledBooking = IncomingBooking & {
@@ -39,7 +40,7 @@ export type CancelledBooking = IncomingBooking & {
  *   - dismissIncoming() is called (Accept / Decline / Timeout)
  */
 
-const POLL_INTERVAL_MS = 10_000; // 10 seconds
+const POLL_INTERVAL_MS = 3_000; // 3 seconds (reduced for 15s waterfall window)
 
 export const useBookingNotifications = (isOnline: boolean) => {
   const [incomingBooking, setIncomingBooking] = useState<IncomingBooking | null>(null);

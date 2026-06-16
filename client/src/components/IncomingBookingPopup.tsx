@@ -22,7 +22,13 @@ type Props = {
  * - Accept/Decline call parent handlers which stop the audio and clear the popup
  */
 const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props) => {
-  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
+  const [countdown, setCountdown] = useState(() => {
+    if (booking.offerExpiresAt) {
+      const remainingMs = new Date(booking.offerExpiresAt).getTime() - Date.now();
+      return Math.max(0, Math.ceil(remainingMs / 1000));
+    }
+    return COUNTDOWN_SECONDS;
+  });
   const [isActing, setIsActing] = useState(false);
 
   // Countdown timer

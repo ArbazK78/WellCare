@@ -2,6 +2,7 @@
 
 const Booking = require('../models/Booking');
 const Guide = require('../models/Guide');
+const dispatchService = require('../services/dispatchService');
 
 // Helper: generate a unique human-readable booking reference ID
 const generateBookingRefId = () => `B${Date.now()}`;
@@ -30,7 +31,7 @@ exports.createBooking = async (req, res) => {
     // specialties didn't exactly match the booked service string.
     // TODO (post-Alpha): Re-introduce specialty + vehicleType matching once
     // guide profiles are standardised and tested end-to-end.
-    const allApproved = await Guide.find({ status: 'approved' }).select('_id');
+    const allApproved = await Guide.find({ status: 'approved', isOnline: true }).select('_id');
     const eligibleGuideIds = allApproved.map(g => g._id);
 
     if (eligibleGuideIds.length === 0) {
@@ -58,7 +59,11 @@ exports.createBooking = async (req, res) => {
     });
 
     const savedBooking = await newBooking.save();
-    console.log(`✅ Booking ${savedBooking._id} created — vehicleType: ${vehicleType}, dropBack: ${dropBack}`);
+    
+    // Start the waterfall dispatch sequence
+    await dispatchService.initiateDispatch(savedBooking._id, eligibleGuideIds);
+
+    console.log(`✅ Booking ${savedBooking._id} created and dispatched — vehicleType: ${vehicleType}, dropBack: ${dropBack}`);
 
     res.status(201).json(savedBooking);
   } catch (error) {
@@ -88,12 +93,12 @@ exports.getUserBookings = async (req, res) => {
 // ---------------------------------------------------------------------------
 exports.checkActiveBooking = async (req, res) => {
   try {
-    const activeBooking = await Booking.findOne({
+    const activeBookings = await Booking.find({
       customer: req.userId,
       status: { $in: ['pending', 'accepted'] },
     });
 
-    res.json({ activeBooking: !!activeBooking });
+    res.json({ activeBookings });
   } catch (error) {
     console.error('❌ Error checking active booking:', error);
     res.status(500).json({ message: 'Server error while checking active booking' });
@@ -201,7 +206,10 @@ exports.updateBookingStatus = async (req, res) => {
         {
           status: 'accepted',
           guide: guideId,
-          eligibleGuides: [], // clear queue — no other guide sees this anymore
+          eligibleGuides: [], // clear legacy queue
+          guideQueue: [],     // clear waterfall queue
+          currentOfferedGuide: null,
+          offerExpiresAt: null,
         },
         { new: true }
       )
@@ -220,24 +228,12 @@ exports.updateBookingStatus = async (req, res) => {
 
     // --- REJECT (guide passes on booking) ---
     if (status === 'rejected' && guideId) {
-      // Remove this guide from eligibleGuides, but keep booking alive for others
-      const booking = await Booking.findByIdAndUpdate(
-        bookingId,
-        { $pull: { eligibleGuides: guideId } },
-        { new: true }
-      );
+      // Force rotation to the next guide instantly!
+      await dispatchService.rotateToNextGuide(bookingId);
+      
+      const updatedBooking = await Booking.findById(bookingId);
 
-      if (!booking) {
-        return res.status(404).json({ message: 'Booking not found' });
-      }
-
-      // If no guides are left to claim this booking, auto-cancel it
-      if (booking.eligibleGuides.length === 0 && booking.status === 'pending') {
-        await Booking.findByIdAndUpdate(bookingId, { status: 'cancelled' });
-        return res.json({ message: 'Booking cancelled — no guides available', booking });
-      }
-
-      return res.json({ message: 'Booking passed — removed from your queue', booking });
+      return res.json({ message: 'Booking passed — removed from your queue', booking: updatedBooking });
     }
 
     // --- COMPLETE ---
@@ -262,15 +258,19 @@ exports.updateBookingStatus = async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // GET GUIDE'S PENDING BOOKINGS
-// Queries the eligibleGuides array — all matched guides see the same requests
+// Uses Waterfall Dispatch — queries for bookings currently offered to this guide
 // ---------------------------------------------------------------------------
 exports.getGuidePendingBookings = async (req, res) => {
   try {
     const guideId = req.guide.id;
+    
+    // Check and rotate any expired offers across the system before querying
+    await dispatchService.autoRotateExpiredOffers();
+
     console.log('🔍 Fetching pending bookings for guide:', guideId);
 
     const pendingBookings = await Booking.find({
-      eligibleGuides: guideId,   // Guide is in the eligible list
+      currentOfferedGuide: guideId,
       status: 'pending',
     })
       .populate('customer', 'name phone email')
