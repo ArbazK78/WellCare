@@ -46,10 +46,6 @@ const BookingConfirmation = ({ booking }: BookingProps) => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Service</p>
-                  <p className="font-medium">{booking.service}</p>
-                </div>
-                <div>
                   <p className="text-sm text-gray-500">Name</p>
                   <p className="font-medium">{booking.name}</p>
                 </div>

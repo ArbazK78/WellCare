@@ -285,7 +285,7 @@ const GuideLogin = () => {
                             <div className="space-y-2">
                               <Label>Enter OTP</Label>
                               <div className="flex justify-center py-2">
-                                <InputOTP maxLength={4} value={otp} onChange={setOtp}>
+                                <InputOTP maxLength={4} onChange={setOtp}>
                                   <InputOTPGroup>
                                     <InputOTPSlot index={0} />
                                     <InputOTPSlot index={1} />

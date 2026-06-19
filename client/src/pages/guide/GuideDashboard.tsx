@@ -12,6 +12,8 @@ import { Calendar, Clock, MapPin, User, Star, X, Check, Bell } from "lucide-reac
 import { useNavigate, useLocation } from "react-router-dom";
 import api from "@/lib/api";
 import { format, isToday, isTomorrow } from "date-fns";
+import { parseLocation } from "@/lib/utils";
+import ActiveRideView from "@/components/ActiveRideView";
 
 // ── Date / time formatters (consistent with customer Dashboard) ─────────────
 const ordinalSuffix = (d: number) => {
@@ -100,7 +102,7 @@ const GuideDashboard = () => {
 
   // Filter bookings by status
   const pendingBookings = bookings.filter(booking => booking.status === "pending");
-  const acceptedBookings = bookings.filter(booking => booking.status === "accepted");
+  const acceptedBookings = bookings.filter(booking => booking.status === "accepted" || booking.status === "arrived");
   const completedBookings = bookings.filter(booking => booking.status === "completed");
 
   const handleAcceptBooking = async (bookingId: string) => {
@@ -155,28 +157,52 @@ const GuideDashboard = () => {
     }
   };
 
-  const handleCompleteBooking = async (bookingId: string) => {
+  const handleArriveBooking = async (bookingId: string) => {
     try {
       const token = localStorage.getItem('guide_token');
       await api.put(`/bookings/${bookingId}/status`, 
-        { status: 'completed' },
+        { status: 'arrived' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
       // Update local state
       setBookings(prev => prev.map(b => 
-        b._id === bookingId ? { ...b, status: 'completed' as const } : b
+        b._id === bookingId ? { ...b, status: 'arrived' as any } : b
       ));
       
       toast({
-        title: "Booking completed",
-        description: "You've marked this booking as completed.",
+        title: "Arrived",
+        description: "You've successfully notified the user that you have arrived.",
       });
     } catch (error) {
-      console.error('Error completing booking:', error);
+      console.error('Error marking as arrived:', error);
       toast({
-        title: "Error completing booking",
-        description: "Failed to complete booking. Please try again.",
+        title: "Error",
+        description: "Failed to mark as arrived. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleCancelBooking = async (bookingId: string, reason: string) => {
+    try {
+      const token = localStorage.getItem('guide_token');
+      await api.put(`/bookings/${bookingId}/status`, 
+        { status: 'guide_cancelled', reason },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setBookings(prev => prev.filter(b => b._id !== bookingId));
+      
+      toast({
+        title: "Ride Cancelled",
+        description: "The booking has been passed to the next available guide.",
+      });
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      toast({
+        title: "Error",
+        description: "Failed to cancel ride. Please try again.",
         variant: "destructive"
       });
     }
@@ -214,7 +240,7 @@ const GuideDashboard = () => {
               )}
             </CardTitle>
             <CardDescription>
-              {booking.service} · {formatBookingDate(booking.date)} at {formatBookingTime(booking.time)}
+              {formatBookingDate(booking.date)} at {formatBookingTime(booking.time)}
             </CardDescription>
           </div>
           <div className="text-right">
@@ -231,20 +257,28 @@ const GuideDashboard = () => {
             <span className="ml-2">{booking.customer?.phone || "No phone"}</span>
           </div>
           
-          <div className="flex items-start">
-            <MapPin className="h-4 w-4 mr-2 text-gray-500 mt-1 shrink-0" />
-            <div className="text-sm">
+          <div className="flex flex-col flex-1 mt-1 border-l-2 border-gray-100 pl-4 ml-2 mb-4">
+            <div className="relative">
+              <div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-white" />
               <div>
-                <span className="font-medium text-gray-600">Pickup:</span>{" "}
-                {(booking as any).pickupLocation || (booking as any).location || "—"}
+                <p className="font-semibold text-gray-900 text-sm">{parseLocation((booking as any).pickupLocation || (booking as any).location).name}</p>
+                {parseLocation((booking as any).pickupLocation || (booking as any).location).address && (
+                  <p className="text-xs text-gray-500 mt-0.5">{parseLocation((booking as any).pickupLocation || (booking as any).location).address}</p>
+                )}
               </div>
-              {(booking as any).destinationAddress && (
-                <div>
-                  <span className="font-medium text-gray-600">Destination:</span>{" "}
-                  {(booking as any).destinationAddress}
-                </div>
-              )}
             </div>
+            
+            {(booking as any).destinationAddress && (
+              <div className="relative mt-3">
+                <div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-sm bg-green-500 ring-4 ring-white" />
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">{parseLocation((booking as any).destinationAddress).name}</p>
+                  {parseLocation((booking as any).destinationAddress).address && (
+                    <p className="text-xs text-gray-500 mt-0.5">{parseLocation((booking as any).destinationAddress).address}</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -291,14 +325,21 @@ const GuideDashboard = () => {
             </div>
           )}
           
-          {isAccepted && (
+          {isAccepted && booking.status === 'accepted' && (
             <div className="flex space-x-2 pt-2">
               <Button 
                 size="sm"
-                onClick={() => handleCompleteBooking(booking._id)}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => handleArriveBooking(booking._id)}
               >
-                <Check className="h-4 w-4 mr-1" /> Mark Complete
+                <MapPin className="h-4 w-4 mr-1" /> Arrived
               </Button>
+            </div>
+          )}
+
+          {isAccepted && booking.status === 'arrived' && (
+            <div className="pt-2 text-center text-blue-600 font-medium bg-blue-50 py-2 rounded-md border border-blue-100">
+              <MapPin className="h-5 w-5 inline mr-1" /> Arrived at Location
             </div>
           )}
           
@@ -311,6 +352,40 @@ const GuideDashboard = () => {
       </CardContent>
     </Card>
   );
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Active Ride View (Takes over the entire dashboard)
+  if (acceptedBookings.length > 0) {
+    // Show the first active booking
+    return (
+      <div className="min-h-screen bg-gray-50 pb-8 flex flex-col">
+        {/* Minimal header for active ride */}
+        <div className="bg-white border-b border-gray-100 px-4 py-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
+            Active Ride
+          </h1>
+          <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
+            <X className="h-5 w-5 text-gray-500" />
+          </Button>
+        </div>
+        <div className="flex-1 px-4">
+          <ActiveRideView 
+            booking={acceptedBookings[0]} 
+            onArrive={handleArriveBooking} 
+            onCancel={handleCancelBooking}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

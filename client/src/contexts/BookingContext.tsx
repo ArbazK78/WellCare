@@ -2,7 +2,6 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import api from "@/lib/api";
 import { useAuth } from "./AuthContext"; // Import useAuth
 
-export type BookingService = "Navigation Assistance" | "Heavy Lifting" | "Transport Assistance";
 
 export type Guide = {
   _id: number | string;
@@ -21,7 +20,6 @@ export type Customer = {
 export type Booking = {
   _id: string;
   status: "pending" | "accepted" | "rejected" | "completed";
-  service: BookingService;
   vehicleType: "scooter" | "cab";
   pickupLocation: string;
   destinationAddress: string;

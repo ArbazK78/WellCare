@@ -1,10 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Check, X, MapPin, Navigation, Clock, User } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, parseLocation } from '@/lib/utils';
+import { useGeolocation } from '@/hooks/useGeolocation';
 import { IncomingBooking } from '@/hooks/useBookingNotifications';
+import { useJsApiLoader } from '@react-google-maps/api';
 
-const COUNTDOWN_SECONDS = 15;
+const libraries: ("places")[] = ["places"];
+
+const COUNTDOWN_SECONDS = 30;
 
 type Props = {
   booking: IncomingBooking;
@@ -30,6 +34,62 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
     return COUNTDOWN_SECONDS;
   });
   const [isActing, setIsActing] = useState(false);
+
+  // Load Google Maps API so DistanceMatrixService is available
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
+    libraries,
+  });
+
+  const { location: guideLocation } = useGeolocation();
+  const [awayText, setAwayText] = useState<string | null>(null);
+  const [tripText, setTripText] = useState<string | null>(null);
+
+  // Distance Matrix Calculations
+  useEffect(() => {
+    // Only proceed if Google Maps is loaded
+    if (!isLoaded || !window.google?.maps?.DistanceMatrixService) return;
+
+    const service = new window.google.maps.DistanceMatrixService();
+    const pickupData = parseLocation(booking.pickupLocation || booking.location || '');
+    const dropoffData = parseLocation(booking.destinationAddress || '');
+    
+    const pickupPoint = pickupData.lat && pickupData.lng 
+      ? { lat: pickupData.lat, lng: pickupData.lng } 
+      : (pickupData.address || pickupData.name);
+      
+    const dropoffPoint = dropoffData.lat && dropoffData.lng 
+      ? { lat: dropoffData.lat, lng: dropoffData.lng } 
+      : (dropoffData.address || dropoffData.name);
+
+    // Leg 1: Guide to Pickup (Away)
+    if (guideLocation && pickupPoint) {
+      service.getDistanceMatrix({
+        origins: [{ lat: guideLocation.lat, lng: guideLocation.lng }],
+        destinations: [pickupPoint],
+        travelMode: window.google.maps.TravelMode.DRIVING,
+      }, (response, status) => {
+        if (status === 'OK' && response?.rows[0]?.elements[0]?.status === 'OK') {
+          const element = response.rows[0].elements[0];
+          setAwayText(`${element.duration.text} (${element.distance.text}) away`);
+        }
+      });
+    }
+
+    // Leg 2: Pickup to Dropoff (Trip)
+    if (pickupPoint && dropoffPoint && !tripText) {
+      service.getDistanceMatrix({
+        origins: [pickupPoint],
+        destinations: [dropoffPoint],
+        travelMode: window.google.maps.TravelMode.DRIVING,
+      }, (response, status) => {
+        if (status === 'OK' && response?.rows[0]?.elements[0]?.status === 'OK') {
+          const element = response.rows[0].elements[0];
+          setTripText(`${element.duration.text} (${element.distance.text}) trip`);
+        }
+      });
+    }
+  }, [guideLocation, booking, tripText, isLoaded]);
 
   // Countdown timer
   useEffect(() => {
@@ -75,7 +135,9 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-blue-200 uppercase tracking-widest mb-0.5">New Booking Request</p>
-              <h2 className="text-xl font-bold">{booking.service}</h2>
+              <h2 className="text-xl font-bold">
+                {booking.vehicleType === 'scooter' ? '🛵 Scooter Ride' : booking.vehicleType === 'cab' ? '🚖 Cab Ride' : 'Booking Request'}
+              </h2>
             </div>
             {/* Countdown ring */}
             <div className="relative flex items-center justify-center">
@@ -106,27 +168,34 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
             </div>
           )}
 
-          {/* Pickup */}
-          <div className="flex items-start gap-2 text-sm">
-            <MapPin className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-            <div>
-              <span className="text-xs text-gray-400 block">Pickup</span>
-              <span className="text-gray-800 font-medium">
-                {booking.pickupLocation || booking.location || '—'}
-              </span>
-            </div>
-          </div>
-
-          {/* Destination */}
-          {booking.destinationAddress && (
-            <div className="flex items-start gap-2 text-sm">
-              <Navigation className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+          {/* Locations Timeline */}
+          <div className="flex flex-col flex-1 mt-2 border-l-[3px] border-black pl-4 ml-2 mb-2 space-y-3">
+            {/* Pickup */}
+            <div className="relative">
+              <div className="absolute -left-[22.5px] top-1.5 w-2.5 h-2.5 rounded-full bg-black ring-[5px] ring-white" />
               <div>
-                <span className="text-xs text-gray-400 block">Destination</span>
-                <span className="text-gray-800 font-medium">{booking.destinationAddress}</span>
+                {awayText && <p className="font-bold text-gray-900 text-[13px] mb-0.5">{awayText}</p>}
+                <p className="font-medium text-gray-700 text-[14px] leading-tight">{parseLocation(booking.pickupLocation || booking.location || '—').name}</p>
+                {parseLocation(booking.pickupLocation || booking.location || '—').address && (
+                  <p className="text-[12px] text-gray-500 mt-0.5 line-clamp-1">{parseLocation(booking.pickupLocation || booking.location || '—').address}</p>
+                )}
               </div>
             </div>
-          )}
+            
+            {/* Destination */}
+            {booking.destinationAddress && (
+              <div className="relative pt-1">
+                <div className="absolute -left-[22.5px] top-2.5 w-2.5 h-2.5 rounded-sm bg-black ring-[5px] ring-white" />
+                <div>
+                  {tripText && <p className="font-bold text-gray-900 text-[13px] mb-0.5">{tripText}</p>}
+                  <p className="font-medium text-gray-700 text-[14px] leading-tight">{parseLocation(booking.destinationAddress).name}</p>
+                  {parseLocation(booking.destinationAddress).address && (
+                    <p className="text-[12px] text-gray-500 mt-0.5 line-clamp-1">{parseLocation(booking.destinationAddress).address}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Badges row */}
           <div className="flex items-center gap-2 flex-wrap pt-1">

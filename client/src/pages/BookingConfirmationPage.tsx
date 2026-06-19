@@ -16,7 +16,6 @@ interface BookingData {
   dropBack?: boolean;
   /** @deprecated legacy field */
   location?: string;
-  service: string;
   date: string;
   time: string;
   waitingRequired?: boolean;

@@ -7,9 +7,17 @@ const BookingSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
-  service: {
+
+  bookingMode: {
     type: String,
-    required: true,
+    enum: ['now', 'schedule'],
+    default: 'now',
+  },
+
+  // Free-form metadata for future use (e.g. visitReason)
+  metadata: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {},
   },
 
   // ── Phase 2: Vehicle Type ────────────────────────────────────────────────
@@ -88,7 +96,7 @@ const BookingSchema = new mongoose.Schema({
   createdAt:    { type: Date,   default: Date.now },
   status: {
     type: String,
-    enum: ['pending', 'accepted', 'rejected', 'cancelled', 'completed'],
+    enum: ['pending', 'accepted', 'arrived', 'rejected', 'cancelled', 'completed'],
     default: 'pending',
   },
   cancelReason: {

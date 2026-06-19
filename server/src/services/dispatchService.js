@@ -9,7 +9,7 @@ const shuffleArray = (array) => {
   return array;
 };
 
-const OFFER_DURATION_MS = 15 * 1000; // 15 seconds
+const OFFER_DURATION_MS = 30 * 1000; // 30 seconds
 
 /**
  * Initializes the dispatch sequence for a newly created booking.

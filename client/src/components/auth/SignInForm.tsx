@@ -20,86 +20,15 @@ const SignInForm = () => {
   useEffect(() => {
     if (isAuthenticated) {
       navigate('/dashboard');
-      return;
     }
+  }, [navigate, isAuthenticated]);
 
-    const handleCredentialResponse = async (response: any) => {
-      console.log("Google Credential Response:", response);
-      const idToken = response.credential;
-
-      if (idToken) {
-        try {
-          const backendResponse = await fetch('http://localhost:5000/api/google', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ idToken }),
-          });
-
-          let data: any;
-          try {
-            data = await backendResponse.json();
-          } catch (jsonError: any) { // Corrected type annotation for catch parameter
-            console.error('Error parsing JSON response:', jsonError);
-            data = { message: `Backend responded with status: ${backendResponse.status}` }; // Provide a fallback message
-          }
-
-          if (backendResponse.ok) {
-            localStorage.setItem('userToken', data.token);
-            setUser(data.user);
-            navigate('/dashboard');
-            toast({
-              title: 'Sign in successful!',
-              description: `Welcome, ${data.user.name}!`,
-            });
-          } else {
-            console.error('Google sign-in failed:', data.message || 'Something went wrong.');
-            toast({
-              title: 'Sign in failed',
-              description: data.message || `Failed to sign in with Google. Status: ${backendResponse.status}`,
-              variant: 'destructive',
-            });
-          }
-        } catch (error) {
-          console.error('Error sending token to backend:', error);
-          toast({
-            title: 'Sign in error',
-            description: 'An error occurred while trying to sign in with Google.',
-            variant: 'destructive',
-          });
-        }
-      } else {
-        console.error('Google ID token not found in the response.');
-        toast({
-          title: 'Sign in error',
-          description: 'Could not retrieve Google ID token.',
-          variant: 'destructive',
-        });
-      }
-    };
-
-    // Initialize Google Sign-in
-    if (window.google && window.google.accounts) {
-      window.google.accounts.id.initialize({
-        client_id: '779962806536-q8b40k2hnvctchnqvb7at1a8221b112d.apps.googleusercontent.com', // Replace with your actual Client ID
-        callback: handleCredentialResponse,
-      });
-
-      // Render the Sign-in button
-      window.google.accounts.id.renderButton(
-        document.querySelector('.google-sign-in-button'), // Target the class name
-        { theme: 'outline', size: 'large' } // You can customize the button here
-      );
-    } else {
-      console.warn('Google Sign-in API not fully loaded.');
-      // Optionally try to load it again or inform the user
-    }
-
-    return () => {
-      // Cleanup if needed
-    };
-  }, [navigate, isAuthenticated, setUser, toast]);
+  const handleGoogleSignIn = () => {
+    toast({
+      title: "Google Sign In",
+      description: "This is a dummy implementation. Please connect Supabase for actual Google authentication.",
+    });
+  };
 
   if (checkingAuth) {
     return null; // or <LoadingSpinner />
@@ -197,8 +126,8 @@ const SignInForm = () => {
 
       <Button
         variant="outline"
-        className="w-full google-sign-in-button" // Added a class for targeting
-        // Removed the onClick here, as the Google button is rendered by the library
+        className="w-full"
+        onClick={handleGoogleSignIn}
       >
         <div className="mr-2 h-4 w-4 flex items-center justify-center">
           <span className="font-bold text-red-500">G</span>

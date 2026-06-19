@@ -127,7 +127,6 @@ const PhoneVerificationForm = ({ phoneNumber, onBack, userData, mode = "login" }
           <InputOTP
             id="otp-input"
             maxLength={6}
-            value={otp}
             onChange={setOtp}
             className="gap-2"
           >

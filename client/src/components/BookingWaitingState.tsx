@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
 interface BookingWaitingStateProps {
-  service: string;
+
   date: string;
   time: string;
   location: string;
@@ -14,13 +14,13 @@ interface BookingWaitingStateProps {
   onCancel: () => void;
 }
 
-const BookingWaitingState = ({ service, date, time, location, onCancel, booking }: BookingWaitingStateProps) => {
+const BookingWaitingState = ({ date, time, location, onCancel, booking }: BookingWaitingStateProps) => {
   const [progress, setProgress] = useState(0);
   const [waitingTime, setWaitingTime] = useState(0);
 
   useEffect(() => {
     console.log("🎭 BookingWaitingState mounted with data:", {
-      service,
+
       date,
       time,
       location,
@@ -44,7 +44,7 @@ const BookingWaitingState = ({ service, date, time, location, onCancel, booking 
       clearInterval(progressInterval);
       clearInterval(waitingInterval);
     };
-  }, [service, date, time, location, booking]);
+  }, [date, time, location, booking]);
 
   // Format waiting time into minutes/hours
   const formatWaitingTime = () => {
@@ -68,7 +68,7 @@ const BookingWaitingState = ({ service, date, time, location, onCancel, booking 
               </span>
             </CardTitle>
             <CardDescription>
-              {service} on {date} at {time}
+              Booking on {date} at {time}
             </CardDescription>
           </div>
         </div>

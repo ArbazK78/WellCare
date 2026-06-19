@@ -19,7 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
-import { format, isToday, isTomorrow, parseISO } from "date-fns";
+import { format, isToday, isTomorrow, parseISO, subMinutes } from "date-fns";
+import { parseLocation } from "@/lib/utils";
 import { useCustomerBookingSync } from "@/hooks/useCustomerBookingSync";
 
 // ── Date/time formatters ─────────────────────────────────────────────────────
@@ -53,6 +54,15 @@ const formatBookingTime = (rawTime: string): string => {
   } catch { return rawTime; }
 };
 
+const parseBookingDateTime = (booking: any) => {
+  if (!booking.date || !booking.time) return new Date(booking.createdAt || Date.now());
+  try {
+    const datePart = format(new Date(booking.date), "yyyy-MM-dd");
+    return new Date(`${datePart}T${booking.time}`);
+  } catch (e) {
+    return new Date(booking.createdAt || Date.now());
+  }
+};
 
 const Dashboard = () => {
   const { bookings, completeBooking, cancelBooking: contextCancelBooking } = useBookings();
@@ -107,10 +117,7 @@ const Dashboard = () => {
       booking.status === "pending" || booking.status === "accepted"
     );
 
-    const parseBookingDateTime = (booking: any) => {
-      if (!booking.date || !booking.time) return new Date();
-      return new Date(`${booking.date}T${booking.time}`);
-    };
+
 
     const sortedUpcoming = [...upcoming].sort((a, b) => {
       return parseBookingDateTime(a).getTime() - parseBookingDateTime(b).getTime();
@@ -191,6 +198,9 @@ const Dashboard = () => {
       const success = await contextCancelBooking(cancelTarget, cancelReason);
       if (success) {
         toast({ title: "Booking Cancelled", description: "Your booking has been successfully cancelled." });
+        if (selectedScheduledBooking?._id === cancelTarget) {
+          setSelectedScheduledBooking(null);
+        }
         setCancelTarget(null);
         setCancelReason("");
       } else {
@@ -209,21 +219,100 @@ const Dashboard = () => {
       <Navbar />
       {selectedScheduledBooking ? (
         <div className="container mx-auto px-4 py-12">
-          <div className="max-w-4xl mx-auto flex flex-col items-start min-h-[60vh]">
+          <div className="max-w-3xl mx-auto flex flex-col items-start min-h-[60vh]">
             <Button variant="ghost" onClick={() => setSelectedScheduledBooking(null)} className="mb-6 -ml-4 hover:bg-transparent hover:text-blue-600">
               ← Back to Dashboard
             </Button>
-            <Card className="w-full flex-1 flex flex-col items-center justify-center p-12 bg-white shadow-sm border-dashed border-2 border-gray-200">
-              <CardContent className="text-center p-0">
-                <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Calendar className="w-8 h-8 text-blue-500" />
+            
+            <div className="w-full">
+              <h1 className="text-3xl font-bold mb-6">Scheduled Booking Details</h1>
+              
+              <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-5 mb-8 flex items-start gap-4">
+                <AlertCircle className="w-6 h-6 text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-blue-900 mb-1">Guide Assignment Pending</h3>
+                  <p className="text-blue-800/80">
+                    We will share your guide details by <strong>{(() => {
+                      const dt = parseBookingDateTime(selectedScheduledBooking);
+                      const dispatchTime = subMinutes(dt, 30);
+                      return format(dispatchTime, "h:mm a, MMM d");
+                    })()}</strong>. You will receive a notification once a guide is assigned.
+                  </p>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">Details coming soon</h2>
-                <p className="text-gray-500 max-w-md mx-auto">
-                  We are preparing a full-page overview for your scheduled bookings. Check back shortly to see guide status, live tracking, and more options.
-                </p>
-              </CardContent>
-            </Card>
+              </div>
+
+              <Card className="mb-8 shadow-sm">
+                <CardHeader className="bg-gray-50/50 border-b pb-4">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-gray-500" />
+                      {formatBookingDate(selectedScheduledBooking.date)} at {formatBookingTime(selectedScheduledBooking.time)}
+                    </CardTitle>
+                    <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
+                      Scheduled
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                      {selectedScheduledBooking.vehicleType === "scooter" ? "🛵" : "🚖"}
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Vehicle</p>
+                      <p className="font-medium text-gray-900 capitalize">{selectedScheduledBooking.vehicleType}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4 relative">
+                    <div className="absolute left-2 top-3 bottom-3 w-0.5 bg-gray-200"></div>
+                    <div className="relative z-10 w-4 h-4 rounded-full bg-blue-500 ring-4 ring-white mt-1 shrink-0"></div>
+                    <div>
+                      <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Pick-up</p>
+                      <p className="font-semibold text-gray-900">{parseLocation(selectedScheduledBooking.pickupLocation).name}</p>
+                      <p className="text-sm text-gray-500 mt-0.5">{parseLocation(selectedScheduledBooking.pickupLocation).address}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4 relative">
+                    <div className="relative z-10 w-4 h-4 rounded-full bg-green-500 ring-4 ring-white mt-1 shrink-0"></div>
+                    <div>
+                      <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Drop-off</p>
+                      <p className="font-semibold text-gray-900">{parseLocation(selectedScheduledBooking.destinationAddress).name}</p>
+                      <p className="text-sm text-gray-500 mt-0.5">{parseLocation(selectedScheduledBooking.destinationAddress).address}</p>
+                    </div>
+                  </div>
+
+                  {(selectedScheduledBooking.waitingHours > 0 || selectedScheduledBooking.dropBack) && (
+                    <div className="pt-4 border-t mt-2 grid grid-cols-2 gap-4">
+                      {selectedScheduledBooking.waitingHours > 0 && (
+                        <div>
+                          <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Waiting Time</p>
+                          <p className="font-medium text-gray-900">{selectedScheduledBooking.waitingHours} Hour(s)</p>
+                        </div>
+                      )}
+                      {selectedScheduledBooking.dropBack && (
+                        <div>
+                          <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Return Trip</p>
+                          <p className="font-medium text-gray-900">Requested</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <div className="border-t pt-8 flex justify-end">
+                <Button 
+                  variant="destructive" 
+                  onClick={() => handleCancelBooking(selectedScheduledBooking._id)}
+                  className="w-full sm:w-auto"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel Booking
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       ) : (
@@ -297,17 +386,26 @@ const Dashboard = () => {
                                   <Clock className="h-4 w-4 ml-4 mr-2 text-blue-600" />
                                   <span>{formatBookingTime(booking.time)}</span>
                                 </div>
-                                <div className="flex items-start">
-                                  <MapPin className="h-4 w-4 mr-2 mt-1 text-blue-600 shrink-0" />
-                                  <span className="text-sm">
-                                    {booking.pickupLocation || booking.location}
-                                    {booking.destinationAddress && (
-                                      <>
-                                        <span className="mx-1 text-gray-400">→</span>
-                                        {booking.destinationAddress}
-                                      </>
-                                    )}
-                                  </span>
+                                <div className="flex flex-col flex-1 pl-1">
+                                  <div className="flex items-start">
+                                    <div className="w-2 h-2 rounded-full bg-blue-600 mt-1.5 mr-3 shrink-0" />
+                                    <div>
+                                      <p className="font-semibold text-gray-900 text-sm">{parseLocation(booking.pickupLocation || booking.location).name}</p>
+                                      {parseLocation(booking.pickupLocation || booking.location).address && (
+                                        <p className="text-xs text-gray-500">{parseLocation(booking.pickupLocation || booking.location).address}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="w-0.5 h-4 bg-gray-200 ml-[3px] my-0.5" />
+                                  <div className="flex items-start">
+                                    <div className="w-2 h-2 rounded-sm bg-green-600 mt-1.5 mr-3 shrink-0" />
+                                    <div>
+                                      <p className="font-semibold text-gray-900 text-sm">{parseLocation(booking.destinationAddress).name}</p>
+                                      {parseLocation(booking.destinationAddress).address && (
+                                        <p className="text-xs text-gray-500">{parseLocation(booking.destinationAddress).address}</p>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {booking.vehicleType && (
@@ -320,9 +418,6 @@ const Dashboard = () => {
                                       🏠 Drop-back included
                                     </span>
                                   )}
-                                </div>
-                                <div>
-                                  <span className="text-gray-600">Service:</span> {booking.service}
                                 </div>
                                 {booking.waitingHours > 0 && (
                                   <div>
@@ -394,18 +489,27 @@ const Dashboard = () => {
                                     <Calendar className="w-4 h-4 mr-2" />
                                     {format(new Date(booking.date), "MMM d, yyyy")} at {format(parseISO(`1970-01-01T${booking.time}`), "h:mm a")}
                                   </div>
-                                  <div className="flex items-start">
-                                    <MapPin className="w-4 h-4 mr-2 mt-0.5 text-blue-500 shrink-0" />
-                                    <div className="flex flex-col">
-                                      <span className="font-medium">
-                                        {booking.pickupLocation || booking.location}
-                                        {booking.destinationAddress && (
-                                          <>
-                                            <span className="mx-1 text-gray-400">→</span>
-                                            {booking.destinationAddress}
-                                          </>
+                                  <div className="flex flex-col flex-1 pl-1 mt-2">
+                                    <div className="flex items-start">
+                                      <div className="w-2 h-2 rounded-full bg-blue-600 mt-1.5 mr-3 shrink-0" />
+                                      <div>
+                                        <p className="font-semibold text-gray-900 text-sm">{parseLocation(booking.pickupLocation || booking.location).name}</p>
+                                        {parseLocation(booking.pickupLocation || booking.location).address && (
+                                          <p className="text-xs text-gray-500">{parseLocation(booking.pickupLocation || booking.location).address}</p>
                                         )}
-                                      </span>
+                                      </div>
+                                    </div>
+                                    <div className="w-0.5 h-4 bg-gray-200 ml-[3px] my-0.5" />
+                                    <div className="flex items-start">
+                                      <div className="w-2 h-2 rounded-sm bg-green-600 mt-1.5 mr-3 shrink-0" />
+                                      <div>
+                                        <p className="font-semibold text-gray-900 text-sm">{parseLocation(booking.destinationAddress).name}</p>
+                                        {parseLocation(booking.destinationAddress).address && (
+                                          <p className="text-xs text-gray-500">{parseLocation(booking.destinationAddress).address}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
                                       <div className="flex items-center gap-2 mt-2">
                                         {booking.vehicleType && (
                                           <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium">
@@ -418,8 +522,6 @@ const Dashboard = () => {
                                           </span>
                                         )}
                                       </div>
-                                    </div>
-                                  </div>
                                 </div>
                                 <Button 
                                   variant="outline" 
@@ -472,26 +574,26 @@ const Dashboard = () => {
                                   <Clock className="h-4 w-4 ml-4 mr-2" />
                                   <span>{formatBookingTime(booking.time)}</span>
                                 </div>
-                                <div className="flex items-start text-gray-500">
-                                  <MapPin className="h-4 w-4 mr-2 mt-1 shrink-0" />
-                                  <span className="text-sm">
-                                    {(booking as any).pickupLocation || booking.location}
-                                    {(booking as any).destinationAddress && (
-                                      <>
-                                        <span className="mx-1 text-gray-400">→</span>
-                                        {(booking as any).destinationAddress}
-                                      </>
-                                    )}
-                                  </span>
+                                <div className="flex flex-col flex-1 pl-1 mt-2 opacity-80">
+                                  <div className="flex items-start">
+                                    <div className="w-2 h-2 rounded-full bg-gray-400 mt-1.5 mr-3 shrink-0" />
+                                    <div>
+                                      <p className="font-semibold text-gray-700 text-sm">{parseLocation((booking as any).pickupLocation || booking.location).name}</p>
+                                    </div>
+                                  </div>
+                                  <div className="w-0.5 h-3 bg-gray-200 ml-[3px] my-0.5" />
+                                  <div className="flex items-start">
+                                    <div className="w-2 h-2 rounded-sm bg-gray-400 mt-1.5 mr-3 shrink-0" />
+                                    <div>
+                                      <p className="font-semibold text-gray-700 text-sm">{parseLocation((booking as any).destinationAddress).name}</p>
+                                    </div>
+                                  </div>
                                 </div>
                                 {(booking as any).vehicleType && (
                                   <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
                                     {(booking as any).vehicleType === "scooter" ? "🛵 Scooter" : "🚖 Cab"}
                                   </span>
                                 )}
-                                <div className="text-gray-500">
-                                  <span className="text-gray-600">Service:</span> {booking.service}
-                                </div>
                                 <div className="flex items-center text-green-600">
                                   <CheckCircle2 className="h-4 w-4 mr-2" />
                                   <span>Completed</span>

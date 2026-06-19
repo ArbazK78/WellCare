@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -14,12 +14,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MapPin, PhoneCall, Clock, Calendar, User, Mail, Navigation, Home, ChevronDown } from "lucide-react";
+import { MapPin, PhoneCall, Clock, Calendar, User, Mail, Navigation, Home, ChevronDown, CheckCircle2 } from "lucide-react";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
 import { useBookings, BookingService } from "@/contexts/BookingContext";
 import { format } from "date-fns";
+import { useJsApiLoader } from "@react-google-maps/api";
+import { LocationAutocomplete, LocationData } from "@/components/ui/LocationAutocomplete";
 import {
   Popover,
   PopoverContent,
@@ -98,8 +100,56 @@ const VehicleCard = ({
   </button>
 );
 
+// ── Scheduled Booking Success View ──
+const ScheduledSuccessView = () => {
+  const navigate = useNavigate();
+  const [countdown, setCountdown] = useState(10);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          navigate("/dashboard");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [navigate]);
+
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+      <div className="h-20 w-20 bg-green-100 rounded-full flex items-center justify-center mb-6 mx-auto">
+        <CheckCircle2 className="h-10 w-10 text-green-600" />
+      </div>
+      <h2 className="text-3xl font-bold text-gray-900 mb-4">Booking Scheduled!</h2>
+      <p className="text-lg text-gray-600 mb-8 max-w-md mx-auto">
+        Your scheduled booking has been created successfully. We will notify you with guide details before the pickup time.
+      </p>
+      
+      <div className="bg-blue-50 text-blue-800 px-6 py-3 rounded-full font-medium mb-8 flex items-center gap-2 mx-auto w-fit">
+        <Clock className="h-5 w-5" />
+        Redirecting to dashboard in {countdown}s...
+      </div>
+
+      <Button type="button" onClick={() => navigate("/dashboard")} size="lg" className="w-full sm:w-auto mx-auto">
+        Go to Dashboard
+      </Button>
+    </div>
+  );
+};
+
 // ─── Main component ───────────────────────────────────────────────────────────
+const libraries: ("places" | "drawing" | "geometry" | "localContext" | "visualization")[] = ["places"];
+
 const Book = () => {
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
+    libraries,
+  });
+
   const locationState = useLocation();
   const navigate      = useNavigate();
   const { toast }     = useToast();
@@ -110,6 +160,7 @@ const Book = () => {
   const [bookingMode, setBookingMode] = useState<"now" | "schedule">("now");
   const [tempBookingMode, setTempBookingMode] = useState<"now" | "schedule">("now");
   const [modePopoverOpen, setModePopoverOpen] = useState(false);
+  const [isScheduledSuccess, setIsScheduledSuccess] = useState(false);
 
   const [scheduleData, setScheduleData] = useState<ScheduleData>({
     pickupDate: new Date(),
@@ -122,16 +173,16 @@ const Book = () => {
     name:               userName || "",
     phone:              userPhone || "",
     email:              userEmail || "",
-    pickupLocation:     "",
-    destinationAddress: "",
+    pickupLocation:     "" as LocationData | string,
+    destinationAddress: "" as LocationData | string,
     dropBack:           false,
-    service:            "",
     waitingRequired:    false,
     waitingHours:       1,
     vehicleType:        "" as "scooter" | "cab" | "",
+    visitReason:        "",
   });
 
-  const handleChange = (field: string, value: string | boolean | number) => {
+  const handleChange = (field: string, value: string | boolean | number | LocationData) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -180,11 +231,10 @@ const Book = () => {
 
   // ── Step 1 validation ──
   const step1Valid =
-    formData.name.trim() &&
-    formData.phone.trim() &&
-    formData.pickupLocation.trim() &&
-    formData.destinationAddress.trim() &&
-    formData.service;
+    Boolean(formData.name?.toString().trim()) &&
+    Boolean(formData.phone?.toString().trim()) &&
+    Boolean(typeof formData.pickupLocation === 'string' ? formData.pickupLocation.trim() : formData.pickupLocation?.name?.trim()) &&
+    Boolean(typeof formData.destinationAddress === 'string' ? formData.destinationAddress.trim() : formData.destinationAddress?.name?.trim());
 
   // ── Submit ──
   const handleSubmit = async (e: React.FormEvent) => {
@@ -195,30 +245,29 @@ const Book = () => {
       return;
     }
 
-    let bookingService: BookingService;
-    switch (formData.service) {
-      case "navigation":    bookingService = "Navigation Assistance";  break;
-      case "heavy-lifting": bookingService = "Heavy Lifting";           break;
-      case "transport":     bookingService = "Transport Assistance";    break;
-      default:              bookingService = "Navigation Assistance";
-    }
-
     try {
       const response = await api.post("/bookings", {
-        service:            bookingService,
         name:               userName || formData.name,
         date:               bookingMode === 'schedule' && scheduleData.pickupDate ? format(scheduleData.pickupDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"), 
         time:               bookingMode === 'schedule' && scheduleData.pickupTime ? scheduleData.pickupTime : format(new Date(), "HH:mm"), 
-        pickupLocation:     formData.pickupLocation,
-        destinationAddress: formData.destinationAddress,
+        pickupLocation:     typeof formData.pickupLocation === 'string' ? formData.pickupLocation : JSON.stringify(formData.pickupLocation),
+        destinationAddress: typeof formData.destinationAddress === 'string' ? formData.destinationAddress : JSON.stringify(formData.destinationAddress),
         vehicleType:        formData.vehicleType,
         dropBack:           formData.dropBack,
         waitingHours:       formData.waitingRequired ? formData.waitingHours : 0,
+        bookingMode:        bookingMode,
+        metadata: {
+          visitReason: formData.visitReason
+        }
       });
 
       if (response.status === 201) {
         await refreshBookings();
-        navigate(`/finding-guide/${response.data._id}`);
+        if (bookingMode === 'schedule') {
+          setIsScheduledSuccess(true);
+        } else {
+          navigate(`/finding-guide/${response.data._id}`);
+        }
       }
     } catch (error: any) {
       console.error("❌ Booking failed:", error);
@@ -231,8 +280,12 @@ const Book = () => {
       <Navbar />
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto">
-          <h1 className="text-3xl font-bold text-center mb-2">Book a Guide</h1>
-          <p className="text-center text-gray-500 mb-6">Hospital assistance, made simple</p>
+          {isScheduledSuccess ? (
+            <ScheduledSuccessView />
+          ) : (
+            <>
+              <h1 className="text-3xl font-bold text-center mb-2">Book a Guide</h1>
+              <p className="text-center text-gray-500 mb-6">Hospital assistance, made simple</p>
 
           {/* ── Booking Mode Dropdown ── */}
           {step === 1 && (
@@ -328,11 +381,11 @@ const Book = () => {
                           id="name"
                           placeholder="Enter your full name"
                           value={formData.name}
-                          onChange={(e) => handleChange("name", e.target.value)}
-                          disabled={!!userName}
+                          readOnly
+                          className="cursor-not-allowed focus-visible:ring-0 focus-visible:ring-offset-0"
                           required
                         />
-                        {userName && <p className="text-xs text-gray-400">Using name from your profile</p>}
+                        {userName && <p className="text-xs text-gray-400">Auto-filled from profile. Change details in your dashboard.</p>}
                       </div>
 
                       <div className="space-y-2">
@@ -343,11 +396,11 @@ const Book = () => {
                           id="phone"
                           placeholder="Enter your phone number"
                           value={formData.phone}
-                          onChange={(e) => handleChange("phone", e.target.value)}
-                          disabled={!!userPhone}
+                          readOnly
+                          className="cursor-not-allowed focus-visible:ring-0 focus-visible:ring-offset-0"
                           required
                         />
-                        {userPhone && <p className="text-xs text-gray-400">Verified phone number</p>}
+                        {userPhone && <p className="text-xs text-gray-400">Auto-filled from profile. Change details in your dashboard.</p>}
                       </div>
 
                       <div className="space-y-2">
@@ -359,10 +412,10 @@ const Book = () => {
                           type="email"
                           placeholder="Enter your email address"
                           value={formData.email}
-                          onChange={(e) => handleChange("email", e.target.value)}
-                          disabled={!!userEmail}
+                          readOnly
+                          className="cursor-not-allowed focus-visible:ring-0 focus-visible:ring-offset-0"
                         />
-                        {userEmail && <p className="text-xs text-gray-400">Using email from your profile</p>}
+                        {userEmail && <p className="text-xs text-gray-400">Auto-filled from profile. Change details in your dashboard.</p>}
                       </div>
                     </div>
 
@@ -374,26 +427,51 @@ const Book = () => {
                         <Label htmlFor="pickup" className="flex items-center gap-2">
                           <MapPin className="h-4 w-4 text-blue-600" /> Pickup Location
                         </Label>
-                        <Input
-                          id="pickup"
-                          placeholder="Where should the guide pick you up?"
-                          value={formData.pickupLocation}
-                          onChange={(e) => handleChange("pickupLocation", e.target.value)}
-                          required
-                        />
+                        {isLoaded ? (
+                          <LocationAutocomplete
+                            id="pickup"
+                            placeholder="Where should the guide pick you up?"
+                            value={formData.pickupLocation}
+                            onChange={(val) => handleChange("pickupLocation", val)}
+                            required
+                          />
+                        ) : (
+                          <Input
+                            id="pickup"
+                            placeholder="Where should the guide pick you up?"
+                            value={formData.pickupLocation}
+                            onChange={(e) => handleChange("pickupLocation", e.target.value)}
+                            required
+                          />
+                        )}
                       </div>
 
                       <div className="space-y-2">
                         <Label htmlFor="destination" className="flex items-center gap-2">
                           <Navigation className="h-4 w-4 text-green-600" /> Destination / Hospital
                         </Label>
-                        <Input
-                          id="destination"
-                          placeholder="Which hospital or clinic are you going to?"
-                          value={formData.destinationAddress}
-                          onChange={(e) => handleChange("destinationAddress", e.target.value)}
-                          required
-                        />
+                        {isLoaded ? (
+                          <LocationAutocomplete
+                            id="destination"
+                            placeholder="Which hospital or clinic are you going to?"
+                            value={formData.destinationAddress}
+                            onChange={(val) => handleChange("destinationAddress", val)}
+                            customOrigin={
+                              typeof formData.pickupLocation === 'object' && formData.pickupLocation?.lat && formData.pickupLocation?.lng 
+                                ? { lat: formData.pickupLocation.lat, lng: formData.pickupLocation.lng }
+                                : undefined
+                            }
+                            required
+                          />
+                        ) : (
+                          <Input
+                            id="destination"
+                            placeholder="Which hospital or clinic are you going to?"
+                            value={formData.destinationAddress}
+                            onChange={(e) => handleChange("destinationAddress", e.target.value)}
+                            required
+                          />
+                        )}
                       </div>
 
                       {/* Drop-back home */}
@@ -413,28 +491,25 @@ const Book = () => {
                           </p>
                         </div>
                       </div>
+                      
+                      {/* Visit Reason */}
+                      <div className="space-y-2 pt-2">
+                        <Label htmlFor="visitReason" className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                          Let us know, why you are visiting the hospital <span className="text-gray-400 font-normal">( Optional )</span>
+                        </Label>
+                        <Input
+                          id="visitReason"
+                          placeholder="E.g., Routine checkup, surgery, visiting a patient..."
+                          value={formData.visitReason}
+                          onChange={(e) => handleChange("visitReason", e.target.value)}
+                        />
+                        <p className="text-[11px] text-gray-500">This will help us understand and serve you better in future trips.</p>
+                      </div>
                     </div>
 
-                    {/* Service & Scheduling */}
+                    {/* Waiting Time Assistance */}
                     <div className="space-y-4">
-                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Service & Schedule</h3>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="service">Service Required</Label>
-                        <Select
-                          value={formData.service}
-                          onValueChange={(v) => handleChange("service", v)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a service" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="heavy-lifting">Carrying Heavy Items</SelectItem>
-                            <SelectItem value="navigation">Navigation Assistance</SelectItem>
-                            <SelectItem value="transport">Transportation Assistance</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Waiting Time Assistance</h3>
 
                         {/* Date and Time picker removed for Phase 1. */}
 
@@ -515,11 +590,11 @@ const Book = () => {
                     <div className="p-4 bg-gray-50 rounded-lg border text-sm space-y-1.5">
                       <div className="flex items-center gap-2 text-gray-600">
                         <MapPin className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                        <span className="truncate"><span className="font-medium">Pickup:</span> {formData.pickupLocation}</span>
+                        <span className="truncate"><span className="font-medium">Pickup:</span> {typeof formData.pickupLocation === 'string' ? formData.pickupLocation : formData.pickupLocation?.name || ''}</span>
                       </div>
                       <div className="flex items-center gap-2 text-gray-600">
                         <Navigation className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                        <span className="truncate"><span className="font-medium">Destination:</span> {formData.destinationAddress}</span>
+                        <span className="truncate"><span className="font-medium">Destination:</span> {typeof formData.destinationAddress === 'string' ? formData.destinationAddress : formData.destinationAddress?.name || ''}</span>
                       </div>
                       {formData.dropBack && (
                         <div className="flex items-center gap-2 text-blue-600">
@@ -571,6 +646,8 @@ const Book = () => {
               </form>
             </CardContent>
           </Card>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -15,7 +15,6 @@ const generateBookingRefId = () => `B${Date.now()}`;
 exports.createBooking = async (req, res) => {
   try {
     const {
-      service,
       name,
       date,
       time,
@@ -24,7 +23,11 @@ exports.createBooking = async (req, res) => {
       vehicleType,
       dropBack,
       waitingHours,
+      bookingMode,
+      metadata,
     } = req.body;
+
+    console.log("📥 Received booking payload:", req.body);
 
     // ALPHA: All approved guides are eligible for every booking.
     // Specialty-based filtering was silently excluding guides whose profile
@@ -38,16 +41,17 @@ exports.createBooking = async (req, res) => {
       return res.status(400).json({ message: 'No approved guides available at the moment. Please try again later.' });
     }
 
-    console.log(`📋 Booking service: "${service}" → ${eligibleGuideIds.length} eligible guide(s)`);
+    console.log(`📋 Booking request → ${eligibleGuideIds.length} eligible guide(s)`);
 
     const bookingRefId = generateBookingRefId();
 
     const newBooking = new Booking({
-      service,
       vehicleType,
       pickupLocation,
       destinationAddress,
       dropBack: dropBack || false,
+      bookingMode: bookingMode || 'now',
+      metadata: metadata || {},
       eligibleGuides: eligibleGuideIds,
       customer: req.userId,
       name,
@@ -60,10 +64,13 @@ exports.createBooking = async (req, res) => {
 
     const savedBooking = await newBooking.save();
     
-    // Start the waterfall dispatch sequence
-    await dispatchService.initiateDispatch(savedBooking._id, eligibleGuideIds);
-
-    console.log(`✅ Booking ${savedBooking._id} created and dispatched — vehicleType: ${vehicleType}, dropBack: ${dropBack}`);
+    // Only start immediate waterfall dispatch if booking is for 'now'
+    if (savedBooking.bookingMode === 'now') {
+      await dispatchService.initiateDispatch(savedBooking._id, eligibleGuideIds);
+      console.log(`✅ Booking ${savedBooking._id} created and dispatched — vehicleType: ${vehicleType}`);
+    } else {
+      console.log(`✅ Scheduled Booking ${savedBooking._id} created (no instant dispatch).`);
+    }
 
     res.status(201).json(savedBooking);
   } catch (error) {
@@ -206,7 +213,7 @@ exports.updateBookingStatus = async (req, res) => {
         {
           status: 'accepted',
           guide: guideId,
-          eligibleGuides: [], // clear legacy queue
+          // eligibleGuides: [], // keep legacy queue for re-dispatch if cancelled
           guideQueue: [],     // clear waterfall queue
           currentOfferedGuide: null,
           offerExpiresAt: null,
@@ -236,7 +243,26 @@ exports.updateBookingStatus = async (req, res) => {
       return res.json({ message: 'Booking passed — removed from your queue', booking: updatedBooking });
     }
 
-    // --- COMPLETE ---
+    // --- GUIDE CANCEL (guide cancels AFTER accepting) ---
+    if (status === 'guide_cancelled' && guideId) {
+      const booking = await Booking.findById(bookingId);
+      if (!booking) return res.status(404).json({ message: 'Booking not found' });
+      
+      const Guide = require('../models/Guide');
+      const onlineGuides = await Guide.find({ status: 'approved', isOnline: true });
+      const onlineGuideIds = onlineGuides.map(g => g._id.toString()).filter(id => id !== guideId);
+
+      booking.status = 'pending';
+      booking.guide = null; 
+      booking.cancelReason = req.body.reason || 'Guide cancelled';
+      await booking.save();
+
+      await dispatchService.initiateDispatch(bookingId, onlineGuideIds);
+
+      return res.json({ message: 'Booking cancelled and passed to queue', booking });
+    }
+
+    // --- COMPLETE / ARRIVED ---
     const booking = await Booking.findByIdAndUpdate(
       bookingId,
       { status },
