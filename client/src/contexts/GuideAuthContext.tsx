@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import api from "@/lib/api"; // ✅ Correct path
+import { useToast } from "@/components/ui/use-toast";
 
 
 export type GuideStatus = "pending" | "approved" | "rejected";
@@ -44,6 +45,7 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthLoading, setIsAuthLoading]     = useState<boolean>(true); // true until session restore attempt finishes
   const [isOnline, setIsOnline]               = useState<boolean>(false);
   const [currentGuide, setCurrentGuide]       = useState<Guide | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     const token = localStorage.getItem("guide_token");
@@ -161,6 +163,13 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
       const { data } = await api.put('/guides/online-status', { isOnline: next });
       setIsOnline(data.isOnline);
       console.log(`📡 Guide is now ${data.isOnline ? 'ONLINE 🟢' : 'OFFLINE 🔴'}`);
+      
+      if (data.isOnline) {
+        toast({
+          title: "You are online now!",
+          description: "You're now visible to customers and can receive ride requests.",
+        });
+      }
     } catch (err) {
       console.error('❌ Failed to update online status:', err);
     }

@@ -40,18 +40,22 @@ const formatBookingDate = (rawDate: string): string => {
   } catch { return rawDate; }
 };
 
-/** Converts "14:30" (24h) → "2:30 PM" */
-const formatBookingTime = (rawTime: string): string => {
+/** Converts "14:30" (24h) → "2:30 PM", or formats ISO date strings */
+const formatBookingTime = (rawTime: string | Date): string => {
   try {
-    if (!rawTime) return rawTime;
-    const [hStr, mStr] = rawTime.split(':');
+    if (!rawTime) return String(rawTime);
+    if (rawTime instanceof Date || (typeof rawTime === 'string' && rawTime.includes('T'))) {
+      const d = new Date(rawTime);
+      return format(d, 'hh:mm a');
+    }
+    const [hStr, mStr] = String(rawTime).split(':');
     const h = parseInt(hStr, 10);
     const m = parseInt(mStr, 10);
-    if (isNaN(h) || isNaN(m)) return rawTime;
+    if (isNaN(h) || isNaN(m)) return String(rawTime);
     const period = h >= 12 ? 'PM' : 'AM';
     const h12   = h % 12 === 0 ? 12 : h % 12;
     return `${h12}:${String(m).padStart(2, '0')} ${period}`;
-  } catch { return rawTime; }
+  } catch { return String(rawTime); }
 };
 
 const parseBookingDateTime = (booking: any) => {
@@ -114,7 +118,7 @@ const Dashboard = () => {
 
   const { currentBooking, scheduledBookings } = useMemo(() => {
     const upcoming = localBookings.filter(booking =>
-      booking.status === "pending" || booking.status === "accepted"
+      booking.status === "pending" || booking.status === "accepted" || booking.status === "arrived" || booking.status === "in_progress"
     );
 
 
@@ -426,38 +430,44 @@ const Dashboard = () => {
                                 )}
                               </div>
 
-                              {/* Actions */}
-                              <div className="md:w-1/4 mt-4 md:mt-0 flex md:justify-end items-center">
-                                <div className="space-y-2">
-                                  {booking.status === "accepted" && booking.guide && (
+                                {/* Actions */}
+                                <div className="md:w-1/4 mt-4 md:mt-0 flex flex-col md:justify-end items-center gap-3">
+                                  {user?.safetyPin && (
+                                    <div className="w-full bg-blue-50 border border-blue-100 rounded-lg p-3 text-center">
+                                      <p className="text-xs font-semibold text-blue-800 uppercase tracking-wider mb-1">Safety PIN</p>
+                                      <p className="text-xl font-bold text-blue-700 tracking-[0.25em]">{user.safetyPin}</p>
+                                    </div>
+                                  )}
+                                  <div className="w-full space-y-2">
+                                    {booking.status === "accepted" && booking.guide && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full"
+                                        onClick={() =>
+                                          setContactGuide({
+                                            name: booking.guide.name,
+                                            phone: (booking.guide as any).phone || "Not available",
+                                          })
+                                        }
+                                      >
+                                        <PhoneCall className="h-4 w-4 mr-1" />
+                                        Contact Guide
+                                      </Button>
+                                    )}
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      className="w-full"
-                                      onClick={() =>
-                                        setContactGuide({
-                                          name: booking.guide.name,
-                                          phone: (booking.guide as any).phone || "Not available",
-                                        })
-                                      }
+                                      className="w-full text-red-500 hover:text-red-600"
+                                      onClick={() => handleCancelBooking(booking._id)}
                                     >
-                                      <PhoneCall className="h-4 w-4 mr-1" />
-                                      Contact Guide
+                                      Cancel
                                     </Button>
-                                  )}
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full text-red-500 hover:text-red-600"
-                                    onClick={() => handleCancelBooking(booking._id)}
-                                  >
-                                    Cancel
-                                  </Button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </CardContent>
-                        </Card>
+                            </CardContent>
+                          </Card>
                         );
                       })()}
                     </div>
@@ -569,8 +579,13 @@ const Dashboard = () => {
                               </div>
                               <div className="md:w-2/4 space-y-2">
                                 <div className="flex items-center text-gray-500">
-                                  <Calendar className="h-4 w-4 mr-2" />
-                                  <span>{formatBookingDate(booking.date)}</span>
+                                  <span className="font-medium text-gray-900">
+                                    Booking #{booking._id.substring(1, 6)} • {(booking as any).completedAt ? (
+                                      <>Today at {formatBookingTime((booking as any).completedAt)}</>
+                                    ) : (
+                                      <>{formatBookingDate(booking.date)}</>
+                                    )}
+                                  </span>
                                   <Clock className="h-4 w-4 ml-4 mr-2" />
                                   <span>{formatBookingTime(booking.time)}</span>
                                 </div>
@@ -664,6 +679,19 @@ const Dashboard = () => {
                           <div className="text-2xl font-bold text-blue-600">{monthsOnWellCare}</div>
                           <div className="text-xs text-gray-500 uppercase font-medium mt-1">
                             {monthsOnWellCare === 1 ? 'Month' : 'Months'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ── SAFETY PIN BLOCK ── */}
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100 shadow-sm my-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-sm font-semibold text-blue-800 uppercase tracking-wider mb-1">Your Safety PIN</h3>
+                            <p className="text-gray-600 text-sm">Share this with your Guide to start the trip</p>
+                          </div>
+                          <div className="bg-white px-6 py-3 rounded-lg border-2 border-blue-200 shadow-inner">
+                            <span className="text-2xl font-bold text-blue-700 tracking-[0.25em]">{user?.safetyPin || "----"}</span>
                           </div>
                         </div>
                       </div>

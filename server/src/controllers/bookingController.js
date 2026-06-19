@@ -102,7 +102,7 @@ exports.checkActiveBooking = async (req, res) => {
   try {
     const activeBookings = await Booking.find({
       customer: req.userId,
-      status: { $in: ['pending', 'accepted'] },
+      status: { $in: ['pending', 'accepted', 'arrived', 'in_progress'] },
     });
 
     res.json({ activeBookings });
@@ -180,6 +180,41 @@ exports.getBookingStatus = async (req, res) => {
   } catch (error) {
     console.error('❌ Error fetching booking status:', error);
     res.status(500).json({ message: 'Error fetching booking status' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// START TRIP (Verify Safety PIN)
+// ---------------------------------------------------------------------------
+exports.startTrip = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { pin } = req.body;
+    const guideId = req.guide?.id;
+
+    const booking = await Booking.findById(bookingId).populate('customer', 'safetyPin name phone email');
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    
+    // Ensure only the assigned guide can start the trip
+    if (booking.guide.toString() !== guideId) {
+      return res.status(403).json({ message: 'Not authorized for this booking' });
+    }
+
+    if (String(booking.customer.safetyPin).trim() !== String(pin).trim()) {
+      console.log(`❌ PIN mismatch: Expected ${booking.customer.safetyPin}, got ${pin}`);
+      return res.status(400).json({ message: 'Invalid Safety PIN' });
+    }
+
+    booking.status = 'in_progress';
+    await booking.save();
+
+    // Re-populate to match standard return shape if needed
+    await booking.populate('guide', 'name image rating phone');
+
+    res.json({ message: 'Trip started successfully', booking });
+  } catch (error) {
+    console.error('❌ Error starting trip:', error);
+    res.status(500).json({ message: 'Server error while starting trip' });
   }
 };
 
@@ -263,9 +298,14 @@ exports.updateBookingStatus = async (req, res) => {
     }
 
     // --- COMPLETE / ARRIVED ---
+    const updateData = { status };
+    if (status === 'completed') {
+      updateData.completedAt = new Date();
+    }
+
     const booking = await Booking.findByIdAndUpdate(
       bookingId,
-      { status },
+      updateData,
       { new: true }
     )
       .populate('customer', 'name phone email')
@@ -320,7 +360,7 @@ exports.getGuideAcceptedBookings = async (req, res) => {
 
     const acceptedBookings = await Booking.find({
       guide: guideId,
-      status: 'accepted',
+      status: { $in: ['accepted', 'arrived', 'in_progress'] },
     })
       .populate('customer', 'name phone email')
       .sort({ createdAt: -1 });

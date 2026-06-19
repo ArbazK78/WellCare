@@ -32,16 +32,20 @@ const formatBookingDate = (raw: string): string => {
   } catch { return raw; }
 };
 
-const formatBookingTime = (raw: string): string => {
+const formatBookingTime = (raw: string | Date): string => {
   try {
-    if (!raw) return raw;
-    const [hStr, mStr] = raw.split(':');
+    if (!raw) return String(raw);
+    if (raw instanceof Date || (typeof raw === 'string' && raw.includes('T'))) {
+      const d = new Date(raw);
+      return format(d, 'hh:mm a');
+    }
+    const [hStr, mStr] = String(raw).split(':');
     const h = parseInt(hStr, 10), m = parseInt(mStr, 10);
-    if (isNaN(h) || isNaN(m)) return raw;
+    if (isNaN(h) || isNaN(m)) return String(raw);
     const period = h >= 12 ? 'PM' : 'AM';
     const h12 = h % 12 === 0 ? 12 : h % 12;
     return `${h12}:${String(m).padStart(2, '0')} ${period}`;
-  } catch { return raw; }
+  } catch { return String(raw); }
 };
 
 
@@ -102,7 +106,7 @@ const GuideDashboard = () => {
 
   // Filter bookings by status
   const pendingBookings = bookings.filter(booking => booking.status === "pending");
-  const acceptedBookings = bookings.filter(booking => booking.status === "accepted" || booking.status === "arrived");
+  const acceptedBookings = bookings.filter(booking => booking.status === "accepted" || booking.status === "arrived" || booking.status === "in_progress");
   const completedBookings = bookings.filter(booking => booking.status === "completed");
 
   const handleAcceptBooking = async (bookingId: string) => {
@@ -208,6 +212,53 @@ const GuideDashboard = () => {
     }
   };
 
+  const handleStartTrip = async (bookingId: string, pin: string) => {
+    try {
+      const token = localStorage.getItem('guide_token');
+      const response = await api.post(`/bookings/${bookingId}/start-trip`, 
+        { pin },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setBookings(prev => prev.map(b => b._id === bookingId ? response.data.booking : b));
+      toast({
+        title: "Trip Started",
+        description: "The Safety PIN is verified and trip has started.",
+      });
+      return true;
+    } catch (error: any) {
+      console.error('Error starting trip:', error);
+      toast({
+        title: error.response?.status === 400 ? "Invalid PIN" : "Error Starting Trip",
+        description: error.response?.data?.message || "Failed to start trip. Please try again.",
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
+
+  const handleCompleteTrip = async (bookingId: string) => {
+    try {
+      const token = localStorage.getItem('guide_token');
+      const response = await api.put(`/bookings/${bookingId}/status`, 
+        { status: 'completed' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setBookings(prev => prev.map(b => b._id === bookingId ? response.data.booking : b));
+      toast({
+        title: "Trip Completed",
+        description: "The trip has been successfully marked as completed.",
+      });
+    } catch (error) {
+      console.error('Error completing booking:', error);
+      toast({
+        title: "Error",
+        description: "Failed to complete trip. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const BookingCard = ({ 
     booking, 
     isPending = false, 
@@ -240,7 +291,11 @@ const GuideDashboard = () => {
               )}
             </CardTitle>
             <CardDescription>
-              {formatBookingDate(booking.date)} at {formatBookingTime(booking.time)}
+              {!isPending && !isAccepted && (booking as any).completedAt ? (
+                <>Today at {formatBookingTime((booking as any).completedAt)}</>
+              ) : (
+                <>{formatBookingDate(booking.date)} at {formatBookingTime(booking.time)}</>
+              )}
             </CardDescription>
           </div>
           <div className="text-right">
@@ -297,11 +352,19 @@ const GuideDashboard = () => {
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center">
               <Calendar className="h-4 w-4 mr-2 text-gray-500" />
-              <span>{formatBookingDate(booking.date)}</span>
+              <span>
+                {!isPending && !isAccepted && (booking as any).completedAt 
+                  ? 'Today' 
+                  : formatBookingDate(booking.date)}
+              </span>
             </div>
             <div className="flex items-center">
               <Clock className="h-4 w-4 mr-2 text-gray-500" />
-              <span>{formatBookingTime(booking.time)}</span>
+              <span>
+                {!isPending && !isAccepted && (booking as any).completedAt 
+                  ? formatBookingTime((booking as any).completedAt) 
+                  : formatBookingTime(booking.time)}
+              </span>
             </div>
           </div>
           
@@ -362,8 +425,12 @@ const GuideDashboard = () => {
   }
 
   // Active Ride View (Takes over the entire dashboard)
-  if (acceptedBookings.length > 0) {
-    // Show the first active booking
+  // An active ride is one that is 'accepted', 'arrived', or 'in_progress'
+  const activeBooking = acceptedBookings.find(b => 
+    b.status === 'accepted' || b.status === 'arrived' || b.status === 'in_progress'
+  );
+
+  if (activeBooking) {
     return (
       <div className="min-h-screen bg-gray-50 pb-8 flex flex-col">
         {/* Minimal header for active ride */}
@@ -378,9 +445,11 @@ const GuideDashboard = () => {
         </div>
         <div className="flex-1 px-4">
           <ActiveRideView 
-            booking={acceptedBookings[0]} 
+            booking={activeBooking} 
             onArrive={handleArriveBooking} 
             onCancel={handleCancelBooking}
+            onStartTrip={handleStartTrip}
+            onCompleteTrip={handleCompleteTrip}
           />
         </div>
       </div>

@@ -58,11 +58,15 @@ export const useCustomerBookingSync = () => {
         (data as any[]).forEach((booking) => {
           const prev = prevStatusMap.current.get(booking._id);
 
-          if (prev === 'pending' && booking.status === 'accepted') {
-            // 🎉 Guide just accepted — play the chime once
-            console.log(`🔔 [CustomerSync] Booking ${booking._id} accepted by guide!`);
-            bookingAudio.playOnce(assignedSoundUrl);
+          if (prev && prev !== booking.status) {
             hadTransition = true;
+            if (prev === 'pending' && booking.status === 'accepted') {
+              // 🎉 Guide just accepted — play the chime once
+              console.log(`🔔 [CustomerSync] Booking ${booking._id} accepted by guide!`);
+              bookingAudio.playOnce(assignedSoundUrl);
+            } else if (booking.status === 'completed') {
+              console.log(`✅ [CustomerSync] Booking ${booking._id} completed!`);
+            }
           }
 
           // Always update the snapshot so we track the latest status

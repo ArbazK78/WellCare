@@ -38,7 +38,10 @@ router.put("/:bookingId/cancel", verifyUserToken, bookingController.cancelBookin
 
 
 // PUT /api/bookings/:bookingId/status - Update booking status (accept/reject/complete)
-router.put('/:bookingId/status', verifyGuideToken, updateBookingStatus); // ✅ Status update endpoint
+router.put('/:bookingId/status', verifyGuideToken, updateBookingStatus);
+
+// POST /api/bookings/:bookingId/start-trip - Start trip with OTP
+router.post("/:bookingId/start-trip", verifyGuideToken, bookingController.startTrip); // ✅ Status update endpoint
 
 router.get('/:bookingId/status', verifyUserToken, getBookingStatus);
 router.get('/:bookingId', verifyUserToken, getBookingById); // Full booking fetch for confirmation page

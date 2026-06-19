@@ -54,6 +54,7 @@ exports.googleSignIn = async (req, res) => {
         name: user.name,
         email: user.email,
         profilePicture: user.profilePicture,
+        safetyPin: user.safetyPin
       },
       token: token,
     });

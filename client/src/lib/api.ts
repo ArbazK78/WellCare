@@ -19,7 +19,8 @@ api.interceptors.request.use(
     const isGuideEndpoint =
       config.url?.startsWith('/guides') ||
       config.url?.startsWith('/bookings/guide') ||
-      (config.method === 'put' && /^\/bookings\/[^/]+\/status$/.test(config.url ?? ''));
+      (config.method === 'put' && /^\/bookings\/[^/]+\/status$/.test(config.url ?? '')) ||
+      (config.method === 'post' && /^\/bookings\/[^/]+\/start-trip$/.test(config.url ?? ''));
 
     token = isGuideEndpoint
       ? localStorage.getItem('guide_token')

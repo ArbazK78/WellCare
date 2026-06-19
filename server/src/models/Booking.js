@@ -96,7 +96,7 @@ const BookingSchema = new mongoose.Schema({
   createdAt:    { type: Date,   default: Date.now },
   status: {
     type: String,
-    enum: ['pending', 'accepted', 'arrived', 'rejected', 'cancelled', 'completed'],
+    enum: ['pending', 'accepted', 'arrived', 'in_progress', 'rejected', 'cancelled', 'completed'],
     default: 'pending',
   },
   cancelReason: {
@@ -109,6 +109,10 @@ const BookingSchema = new mongoose.Schema({
     required: false,
   },
   cancelledAt: {
+    type: Date,
+    required: false,
+  },
+  completedAt: {
     type: Date,
     required: false,
   },

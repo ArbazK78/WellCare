@@ -13,11 +13,16 @@ const userSchema = new mongoose.Schema({
     home: { type: String },
     work: { type: String }
   },
+  safetyPin: { type: String }, // 4-digit PIN for trip verification
   createdAt: { type: Date, default: Date.now }
 });
 
 // Hash password before saving (only if password is being set/modified)
 userSchema.pre('save', async function (next) {
+  if (!this.safetyPin) {
+    this.safetyPin = Math.floor(1000 + Math.random() * 9000).toString();
+  }
+
   if (!this.isModified('password') || !this.password) return next(); // ✅ skip if no password
   this.password = await bcrypt.hash(this.password, 10);
   next();
