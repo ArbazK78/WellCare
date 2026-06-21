@@ -44,9 +44,12 @@ exports.createBooking = async (req, res) => {
     console.log(`📋 Booking request → ${eligibleGuideIds.length} eligible guide(s)`);
 
     const bookingRefId = generateBookingRefId();
+    // Temporary Random Fare calculation between ₹100 and ₹500
+    const calculatedFare = Math.floor(Math.random() * (500 - 100 + 1) + 100);
 
     const newBooking = new Booking({
       vehicleType,
+      totalFare: calculatedFare,
       pickupLocation,
       destinationAddress,
       dropBack: dropBack || false,
@@ -136,6 +139,33 @@ exports.cancelBooking = async (req, res) => {
   } catch (error) {
     console.error('❌ Error cancelling booking:', error);
     res.status(500).json({ message: 'Server error while cancelling booking' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// PAY BOOKING (mark payment as completed)
+// ---------------------------------------------------------------------------
+exports.payBooking = async (req, res) => {
+  const { bookingId } = req.params;
+
+  try {
+    const booking = await Booking.findById(bookingId);
+    
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    if (booking.status !== 'completed') {
+      return res.status(400).json({ message: 'Booking must be completed before payment can be resolved.' });
+    }
+
+    booking.paymentStatus = 'paid';
+    await booking.save();
+
+    res.status(200).json({ message: 'Payment completed successfully', booking });
+  } catch (error) {
+    console.error('❌ Error paying booking:', error);
+    res.status(500).json({ message: 'Server error while processing payment' });
   }
 };
 

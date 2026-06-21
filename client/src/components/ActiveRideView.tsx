@@ -12,13 +12,33 @@ const libraries: ("places")[] = ["places"];
 // Map options for a locked, clean navigation view
 const mapOptions = {
   disableDefaultUI: true,
-  gestureHandling: "none", // Lock pan/zoom for now as requested
+  gestureHandling: "greedy", // Allow panning/zooming as requested
   zoomControl: false,
   mapTypeControl: false,
   scaleControl: false,
   streetViewControl: false,
   rotateControl: false,
   fullscreenControl: false,
+};
+
+const getVehicleIcon = (type: string) => {
+  const isScooter = type === 'scooter';
+  const emoji = isScooter ? '🛵' : '🚖';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="white" stroke="#3b82f6" stroke-width="3"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" font-size="20">${emoji}</text></svg>`;
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+    scaledSize: new window.google.maps.Size(40, 40),
+    anchor: new window.google.maps.Point(20, 20),
+  };
+};
+
+const getPinIcon = (color: string) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="${color}" stroke="white" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3" fill="white"/></svg>`;
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+    scaledSize: new window.google.maps.Size(32, 32),
+    anchor: new window.google.maps.Point(16, 32),
+  };
 };
 
 // Map container styling with rounded corners
@@ -171,48 +191,32 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
             onLoad={(map) => { mapRef.current = map; }}
           >
             {directions && (
-              <DirectionsRenderer 
-                directions={directions} 
-                options={{
-                  suppressMarkers: true, // We will draw our own markers
-                  polylineOptions: {
-                    strokeColor: '#3b82f6', // Blue route line
-                    strokeWeight: 6,
-                    strokeOpacity: 0.8,
-                  }
-                }}
-              />
-            )}
-
-            {/* Guide Location Marker (Live) */}
-            {guideLocation && (
-              <Marker
-                position={{ lat: guideLocation.lat, lng: guideLocation.lng }}
-                icon={{
-                  path: window.google.maps.SymbolPath.CIRCLE,
-                  scale: 8,
-                  fillColor: '#2563eb',
-                  fillOpacity: 1,
-                  strokeColor: '#ffffff',
-                  strokeWeight: 3,
-                }}
-                zIndex={100}
-              />
-            )}
-
-            {/* Pickup Marker */}
-            {pickupData.lat && pickupData.lng && (
-              <Marker
-                position={{ lat: pickupData.lat, lng: pickupData.lng }}
-                icon={{
-                  path: window.google.maps.SymbolPath.CIRCLE,
-                  scale: 7,
-                  fillColor: '#000000',
-                  fillOpacity: 1,
-                  strokeColor: '#ffffff',
-                  strokeWeight: 2,
-                }}
-              />
+              <>
+                <DirectionsRenderer 
+                  directions={directions} 
+                  options={{
+                    suppressMarkers: true,
+                    polylineOptions: {
+                      strokeColor: '#3b82f6',
+                      strokeWeight: 6,
+                      strokeOpacity: 0.8,
+                    }
+                  }}
+                />
+                {directions.routes[0]?.legs[0]?.start_location && (
+                  <Marker 
+                    position={directions.routes[0].legs[0].start_location}
+                    icon={(!isInProgress) ? getVehicleIcon(booking.vehicleType || 'cab') : getPinIcon('#3b82f6')}
+                    zIndex={100}
+                  />
+                )}
+                {directions.routes[0]?.legs[0]?.end_location && (
+                  <Marker 
+                    position={directions.routes[0].legs[0].end_location}
+                    icon={(!isInProgress) ? getPinIcon('#3b82f6') : getPinIcon('#10b981')}
+                  />
+                )}
+              </>
             )}
           </GoogleMap>
         )}
@@ -277,7 +281,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
             {/* Fare Estimate */}
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Estimated Fare</p>
-              <p className="font-bold text-gray-900 text-lg">₹ 250 - ₹ 300</p>
+              <p className="font-bold text-gray-900 text-lg">₹{booking.totalFare || 0}</p>
             </div>
 
             {/* Cancel Button */}

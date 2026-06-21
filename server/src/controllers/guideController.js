@@ -77,7 +77,10 @@ exports.loginGuide = async (req, res) => {
     }
 
 
-    // If approved
+    // If approved, force offline on new session
+    guide.isOnline = false;
+    await guide.save();
+
     const token = jwt.sign(
       { id: guide._id }, // ✅ should match what's accessed in middleware
       process.env.JWT_SECRET,

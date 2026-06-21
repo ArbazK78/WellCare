@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useGuideAuth } from "@/contexts/GuideAuthContext";
 import { Booking } from "@/contexts/BookingContext";
 import { useToast } from "@/hooks/use-toast";
@@ -7,7 +7,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Calendar, Clock, MapPin, User, Star, X, Check, Bell } from "lucide-react";
+import { Calendar, Clock, MapPin, User, Star, X, Check, Bell, CheckCircle2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
 
 import { useNavigate, useLocation } from "react-router-dom";
 import api from "@/lib/api";
@@ -108,6 +112,57 @@ const GuideDashboard = () => {
   const pendingBookings = bookings.filter(booking => booking.status === "pending");
   const acceptedBookings = bookings.filter(booking => booking.status === "accepted" || booking.status === "arrived" || booking.status === "in_progress");
   const completedBookings = bookings.filter(booking => booking.status === "completed");
+
+  const [isPaying, setIsPaying] = useState(false);
+  const [closedPaymentModalId, setClosedPaymentModalId] = useState<string | null>(null);
+
+  // Derived payment booking state
+  const paymentBooking = bookings.find((b: any) => 
+    b.status === "completed" && 
+    b.paymentStatus === "pending" &&
+    b._id !== closedPaymentModalId
+  );
+
+  const handlePayment = async () => {
+    if (!paymentBooking) return;
+    setIsPaying(true);
+    try {
+      const token = localStorage.getItem('guide_token');
+      await api.put(`/bookings/${paymentBooking._id}/guide-pay`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast({ title: "Payment Collected", description: "The booking is now fully completed." });
+      setClosedPaymentModalId(paymentBooking._id);
+      fetchBookings(); // Refresh bookings in background
+    } catch (err) {
+      toast({ title: "Update Failed", description: "Could not confirm payment. Please try again.", variant: "destructive" });
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  // Poll for payment completion bidirectionally if we have a pending payment modal open
+  useEffect(() => {
+    if (!paymentBooking) return;
+    const interval = setInterval(() => {
+      fetchBookings();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [paymentBooking, fetchBookings]);
+
+  // Detect remote close and show toast
+  const prevPaymentBookingRef = useRef<any>(null);
+  useEffect(() => {
+    if (prevPaymentBookingRef.current && !paymentBooking) {
+      if (closedPaymentModalId !== prevPaymentBookingRef.current._id) {
+        toast({ 
+          title: "Payment Received", 
+          description: `₹${prevPaymentBookingRef.current.totalFare || 0} received from ${prevPaymentBookingRef.current.customer?.name || 'Customer'} successfully.` 
+        });
+      }
+    }
+    prevPaymentBookingRef.current = paymentBooking;
+  }, [paymentBooking, closedPaymentModalId, toast]);
 
   const handleAcceptBooking = async (bookingId: string) => {
     try {
@@ -578,6 +633,44 @@ const GuideDashboard = () => {
         </Tabs>
 
       </div>
+
+      {/* Guide Payment Collection Modal */}
+      <Dialog open={!!paymentBooking} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-[#1e1e1e] border-0 rounded-2xl">
+          <div className="bg-blue-600 p-8 flex flex-col items-center text-center">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-4">
+              <CheckCircle2 className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-3xl font-bold text-white mb-2">Trip Completed!</h2>
+            <p className="text-blue-50">You've successfully dropped off the customer.</p>
+          </div>
+          
+          <div className="p-8 text-center bg-[#1e1e1e]">
+            <p className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2">Please Collect</p>
+            <p className="text-5xl font-black text-white mb-8">₹{(paymentBooking as any)?.totalFare || 0}</p>
+            
+            <div className="bg-[#2a2a2a] rounded-xl p-4 flex items-center gap-4 mb-8 border border-white/5">
+              <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-800 shrink-0">
+                <div className="w-full h-full flex items-center justify-center text-gray-500">
+                  <User size={24}/>
+                </div>
+              </div>
+              <div className="text-left flex-1">
+                <p className="text-sm font-semibold text-white">{(paymentBooking as any)?.customer?.name || "Your Customer"}</p>
+                <p className="text-xs text-gray-400">Collect cash payment directly</p>
+              </div>
+            </div>
+            
+            <Button 
+              className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-lg font-bold transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)]"
+              onClick={handlePayment}
+              disabled={isPaying}
+            >
+              {isPaying ? "Processing..." : "Done"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

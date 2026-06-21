@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,10 +11,11 @@ import {
 } from "@/components/ui/dialog";
 import { CheckCircle2, Clock, MapPin, Calendar, User, Mail, Phone, X, PhoneCall, MessageCircle, AlertCircle, ArrowRight } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useBookings } from "@/contexts/BookingContext";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
+import UserActiveRideView from "@/components/UserActiveRideView";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -72,6 +73,7 @@ const Dashboard = () => {
   const { bookings, completeBooking, cancelBooking: contextCancelBooking } = useBookings();
   const { userPhone, userName, userEmail, updateProfile, user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const memberSince = user?.createdAt ? new Date(user.createdAt) : new Date();
   const monthsDiff = Math.floor((new Date().getTime() - memberSince.getTime()) / (1000 * 60 * 60 * 24 * 30));
@@ -86,6 +88,103 @@ const Dashboard = () => {
   useEffect(() => {
     setLocalBookings(bookings);
   }, [bookings]);
+
+  const activeBooking = localBookings.find(
+    (b: any) => ["pending", "accepted", "arrived", "in_progress"].includes(b.status)
+  );
+
+  useEffect(() => {
+    if (activeBooking && activeBooking.status === "pending") {
+      navigate(`/finding-guide/${activeBooking._id}`, { replace: true });
+    }
+  }, [activeBooking, navigate]);
+
+  const [isPaying, setIsPaying] = useState(false);
+  const [closedPaymentModalId, setClosedPaymentModalId] = useState<string | null>(null);
+
+  const paymentBooking = useMemo(() => {
+    return localBookings.find((b: any) => 
+      b.status === "completed" && 
+      b.paymentStatus === "pending" &&
+      b._id !== closedPaymentModalId
+    );
+  }, [localBookings, closedPaymentModalId]);
+
+  const handlePayment = async () => {
+    if (!paymentBooking) return;
+    setIsPaying(true);
+    try {
+      // 1. Create Order
+      const { data: orderData } = await api.post('/payments/create-order', { bookingId: paymentBooking._id });
+      
+      const options = {
+        key: orderData.key_id,
+        amount: orderData.order.amount,
+        currency: orderData.order.currency,
+        name: "WellCare",
+        description: `Payment for Ride with ${(paymentBooking.guide as any)?.name || 'Guide'}`,
+        order_id: orderData.order.id,
+        handler: async function (response: any) {
+          try {
+            // 2. Verify Payment
+            await api.post('/payments/verify', {
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature,
+              bookingId: paymentBooking._id
+            });
+            toast({ title: "Payment Successful", description: `Payment done to ${(paymentBooking.guide as any)?.name || 'Guide'}` });
+            setClosedPaymentModalId(paymentBooking._id);
+          } catch (err) {
+            toast({ title: "Verification Failed", description: "Payment verification failed.", variant: "destructive" });
+          } finally {
+            setIsPaying(false);
+          }
+        },
+        modal: {
+          ondismiss: function() {
+            // Re-open our local dialog if user cancels Razorpay checkout
+            setClosedPaymentModalId(null);
+            setIsPaying(false);
+          }
+        },
+        prefill: {
+          name: profileForm.name,
+          email: profileForm.email,
+          contact: profileForm.phone
+        },
+        theme: {
+          color: "#2563eb"
+        }
+      };
+
+      const razorpayInstance = new (window as any).Razorpay(options);
+      razorpayInstance.on('payment.failed', function (response: any) {
+        toast({ title: "Payment Failed", description: response.error.description, variant: "destructive" });
+      });
+      
+      // Temporarily hide Shadcn Dialog so it doesn't block pointer events for Razorpay
+      setClosedPaymentModalId(paymentBooking._id);
+      razorpayInstance.open();
+    } catch (err) {
+      toast({ title: "Error", description: "Could not initialize payment. Please try again.", variant: "destructive" });
+      setIsPaying(false);
+    }
+  };
+
+  // Detect remote close and show toast
+  const prevPaymentBookingRef = useRef<any>(null);
+  useEffect(() => {
+    if (prevPaymentBookingRef.current && !paymentBooking) {
+      if (closedPaymentModalId !== prevPaymentBookingRef.current._id) {
+        toast({ 
+          title: "Payment Completed", 
+          description: `Your payment of ₹${prevPaymentBookingRef.current.totalFare || 0} to ${prevPaymentBookingRef.current.guide?.name || 'Guide'} is completed successfully.` 
+        });
+      }
+    }
+    prevPaymentBookingRef.current = paymentBooking;
+  }, [paymentBooking, closedPaymentModalId, toast]);
 
   const [contactGuide, setContactGuide] = useState<{ name: string; phone: string } | null>(null);
   const [cancelTarget, setCancelTarget]   = useState<string | null>(null);
@@ -217,11 +316,21 @@ const Dashboard = () => {
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-b from-blue-50 to-white"
+      className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col"
       style={{ overflowY: activeTab === 'profile' ? 'hidden' : 'auto' }}
     >
       <Navbar />
-      {selectedScheduledBooking ? (
+
+      {/* Show Active Tracking View if a ride is in progress or guide has accepted/arrived */}
+      {activeBooking && activeBooking.status !== "pending" ? (
+        <div className="flex-1 overflow-hidden">
+          <UserActiveRideView 
+            booking={activeBooking} 
+            onCancelClick={handleCancelBooking} 
+            onContactGuide={(guide) => setContactGuide({ name: guide.name, phone: guide.phone || "Not available", email: guide.email || "Not available" })} 
+          />
+        </div>
+      ) : selectedScheduledBooking ? (
         <div className="container mx-auto px-4 py-12">
           <div className="max-w-3xl mx-auto flex flex-col items-start min-h-[60vh]">
             <Button variant="ghost" onClick={() => setSelectedScheduledBooking(null)} className="mb-6 -ml-4 hover:bg-transparent hover:text-blue-600">
@@ -911,6 +1020,46 @@ const Dashboard = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Success Modal */}
+      <Dialog open={!!paymentBooking} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-[#1e1e1e] border-0 rounded-2xl">
+          <div className="bg-green-500 p-8 flex flex-col items-center text-center">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-4">
+              <CheckCircle2 className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-3xl font-bold text-white mb-2">Trip Completed!</h2>
+            <p className="text-green-50">Your ride has successfully ended.</p>
+          </div>
+          
+          <div className="p-8 text-center bg-[#1e1e1e]">
+            <p className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-2">Amount to Pay</p>
+            <p className="text-5xl font-black text-white mb-8">₹{paymentBooking?.totalFare || 0}</p>
+            
+            <div className="bg-[#2a2a2a] rounded-xl p-4 flex items-center gap-4 mb-8 border border-white/5">
+              <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-800 shrink-0">
+                {paymentBooking?.guide?.image ? (
+                  <img src={paymentBooking.guide.image} alt={paymentBooking.guide.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-500"><User size={24}/></div>
+                )}
+              </div>
+              <div className="text-left flex-1">
+                <p className="text-sm font-semibold text-white">{paymentBooking?.guide?.name || "Your Guide"}</p>
+                <p className="text-xs text-gray-400">Please pay the guide directly for now</p>
+              </div>
+            </div>
+            
+            <Button 
+              className="w-full h-14 bg-green-500 hover:bg-green-600 text-white rounded-xl text-lg font-bold transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:shadow-[0_0_30px_rgba(34,197,94,0.5)]"
+              onClick={handlePayment}
+              disabled={isPaying}
+            >
+              {isPaying ? "Processing..." : "Pay"} <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

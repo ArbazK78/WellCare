@@ -36,6 +36,11 @@ router.get('/guide/recent-cancellations', verifyGuideToken, getGuideRecentCancel
 // PUT /api/bookings/:bookingId/cancel - Cancel a specific booking
 router.put("/:bookingId/cancel", verifyUserToken, bookingController.cancelBooking); // 👈 Soft delete
 
+// PUT /api/bookings/:bookingId/pay - Pay a booking (User)
+router.put("/:bookingId/pay", verifyUserToken, bookingController.payBooking);
+
+// PUT /api/bookings/:bookingId/guide-pay - Pay a booking (Guide cash collection)
+router.put("/:bookingId/guide-pay", verifyGuideToken, bookingController.payBooking);
 
 // PUT /api/bookings/:bookingId/status - Update booking status (accept/reject/complete)
 router.put('/:bookingId/status', verifyGuideToken, updateBookingStatus);

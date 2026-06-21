@@ -45,6 +45,9 @@ const CustomerRouteGuard = ({ children }: { children: React.ReactNode }) => {
   const isGuideRoute = location.pathname.startsWith("/guide");
 
   useEffect(() => {
+    // Temporarily disabled so you can test both User and Guide flows 
+    // simultaneously in two tabs within the same browser!
+    /*
     if (!isGuideRoute) {
       const guideToken = localStorage.getItem("guide_token");
       if (guideToken) {
@@ -52,6 +55,7 @@ const CustomerRouteGuard = ({ children }: { children: React.ReactNode }) => {
         localStorage.removeItem("guide_data");
       }
     }
+    */
   }, [isGuideRoute]);
 
   return <>{children}</>;

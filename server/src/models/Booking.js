@@ -93,6 +93,12 @@ const BookingSchema = new mongoose.Schema({
   date:         { type: Date,   required: true },
   time:         { type: String, required: true },
   waitingHours: { type: Number, default: 0 },
+  // Gateway Fields
+  razorpayOrderId: { type: String },
+  razorpayPaymentId: { type: String },
+  razorpaySignature: { type: String },
+  
+  // Timestamps
   createdAt:    { type: Date,   default: Date.now },
   status: {
     type: String,
@@ -115,6 +121,15 @@ const BookingSchema = new mongoose.Schema({
   completedAt: {
     type: Date,
     required: false,
+  },
+  totalFare: {
+    type: Number,
+    default: 0,
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'paid'],
+    default: 'pending',
   },
 });
 

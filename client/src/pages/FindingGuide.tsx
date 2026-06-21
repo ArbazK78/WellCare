@@ -5,6 +5,10 @@ import { useBookings } from "@/contexts/BookingContext";
 import api from "@/lib/api";
 import assignedSoundUrl from "@/assets/guide_assigned.wav";
 import Navbar from "@/components/Navbar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Button } from "@/components/ui/button";
+import { AlertCircle } from "lucide-react";
 
 // ── Captions that cycle with a fade ──────────────────────────────────────────
 const CAPTIONS = [
@@ -22,11 +26,14 @@ const CAPTION_INTERVAL_MS = 3_000; // Rotate caption every 3s
 const FindingGuide = () => {
   const { bookingId } = useParams<{ bookingId: string }>();
   const navigate = useNavigate();
-  const { refreshBookings } = useBookings();
+  const { refreshBookings, cancelBooking } = useBookings();
 
   const [captionIndex, setCaptionIndex] = useState(0);
   const [captionVisible, setCaptionVisible] = useState(true);
   const [accepted, setAccepted] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   const intervalRef     = useRef<ReturnType<typeof setInterval> | null>(null);
   const captionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -159,17 +166,18 @@ const FindingGuide = () => {
             <p className="text-blue-200/70 text-xs">
               We will notify you the moment a guide accepts your request.
             </p>
+            
+            {/* ── Cancel button ────────────────────────────────────────────────── */}
+            {!accepted && (
+              <button
+                onClick={() => setShowCancelModal(true)}
+                disabled={isCancelling}
+                className="text-blue-400 hover:text-blue-300 text-sm underline underline-offset-4 transition-colors disabled:opacity-50 mt-2 block"
+              >
+                {isCancelling ? "Cancelling..." : "Cancel Ride"}
+              </button>
+            )}
           </div>
-
-          {/* ── Cancel link ────────────────────────────────────────────────── */}
-          {!accepted && (
-            <button
-              onClick={() => navigate("/dashboard")}
-              className="text-blue-400 hover:text-blue-300 text-sm underline underline-offset-4 transition-colors"
-            >
-              Go to my dashboard instead
-            </button>
-          )}
         </div>
       </div>
 
@@ -185,6 +193,67 @@ const FindingGuide = () => {
           width: 60%;
         }
       `}</style>
+
+      {/* Cancel Reason Dialog */}
+      <Dialog open={showCancelModal} onOpenChange={(open) => { if (!open) { setShowCancelModal(false); setCancelReason(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-red-500" />
+              Cancel Booking
+            </DialogTitle>
+            <DialogDescription>
+              Please let us know why you're cancelling. This helps us improve our service.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-3">
+            <RadioGroup value={cancelReason} onValueChange={setCancelReason} className="space-y-2">
+              {[
+                "Taking too long to find a guide",
+                "Change of plans",
+                "Booked by mistake",
+                "Found alternative transport",
+                "Emergency situation",
+                "Other",
+              ].map((reason) => (
+                <label
+                  key={reason}
+                  className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors hover:bg-gray-50 has-[:checked]:bg-red-50 has-[:checked]:border-red-300"
+                >
+                  <RadioGroupItem value={reason} id={reason} />
+                  <span className="text-sm">{reason}</span>
+                </label>
+              ))}
+            </RadioGroup>
+          </div>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => { setShowCancelModal(false); setCancelReason(""); }}
+            >
+              Keep Booking
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              disabled={!cancelReason || isCancelling}
+              onClick={async () => {
+                if (!bookingId || isCancelling) return;
+                setIsCancelling(true);
+                const success = await cancelBooking(bookingId, cancelReason);
+                if (success) {
+                  navigate("/dashboard");
+                }
+                setIsCancelling(false);
+                setShowCancelModal(false);
+              }}
+            >
+              {isCancelling ? "Cancelling..." : "Cancel Booking"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

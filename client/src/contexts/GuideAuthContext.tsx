@@ -32,7 +32,7 @@ type GuideAuthContextType = {
     experience?: string,
     specialties?: string[],
     bio?: string, profile_picture?: FileList, government_id?: FileList) => Promise<string>;
-  guideLogout: () => void;
+  guideLogout: () => Promise<void>;
   getAllApprovedGuides: () => Promise<Guide[]>;
   updateGuideProfile: (updatedData: Partial<Guide>) => Promise<void>;
   toggleOnlineStatus: () => Promise<void>;
@@ -150,11 +150,22 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const guideLogout = () => {
-    localStorage.removeItem("guide_token");
-    setIsAuthenticated(false);
-    setIsOnline(false);
-    setCurrentGuide(null);
+  const guideLogout = async () => {
+    try {
+      const token = localStorage.getItem("guide_token");
+      if (token && isOnline) {
+        await api.put('/guides/online-status', { isOnline: false }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
+    } catch (err) {
+      console.error("Failed to set offline during logout:", err);
+    } finally {
+      localStorage.removeItem("guide_token");
+      setIsAuthenticated(false);
+      setIsOnline(false);
+      setCurrentGuide(null);
+    }
   };
 
   const toggleOnlineStatus = async () => {
