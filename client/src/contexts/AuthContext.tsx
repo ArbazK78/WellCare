@@ -66,9 +66,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUserPhone(data.phone);
           setUserEmail(data.email);
           // ✅ Update the full user object as well, including phone and createdAt
+          // ✅ Update the full user object as well, including phone and createdAt
           setUserState({ _id: data._id, name: data.name, email: data.email, phone: data.phone, createdAt: data.createdAt, safetyPin: data.safetyPin });
-          console.log("✅ [AuthContext] User profile fetched:", data); // ADD THIS LINE
-          console.log("✅ [AuthContext] userName set to:", data.name); // ADD THIS LINE
         })
         .catch((err) => {
           console.error("❌ Auth check failed:", err);
@@ -88,15 +87,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { data } = await api.post("/users/login", { phone });
       localStorage.setItem("userToken", data.token);
-      console.log("🔐 Received token:", data.token);
       setIsAuthenticated(true);
       setUserPhone(data.user.phone);
       setUserName(data.user.name);
       setUserEmail(data.user.email);
       // ✅ Update the full user object on login, including phone and createdAt
       setUserState({ _id: data.user._id, name: data.user.name, email: data.user.email, phone: data.user.phone, createdAt: data.user.createdAt, safetyPin: data.user.safetyPin });
-      console.log("✅ [AuthContext] Login successful, user data:", data.user); // ADD THIS LINE
-  console.log("✅ [AuthContext] userName set to:", data.user.name); // ADD THIS LINE
       return true;
     } catch (error: any) {
       toast({
@@ -131,18 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const getProfile = async () => {
-    try {
-      const { data } = await api.get("/users/profile");
-      setUserName(data.name);
-      setUserPhone(data.phone);
-      setUserEmail(data.email || "");
-      // ✅ Update the full user object on profile fetch, including phone and createdAt
-      setUserState({ _id: data._id, name: data.name, email: data.email, phone: data.phone, createdAt: data.createdAt, safetyPin: data.safetyPin });
-    } catch (error) {
-      console.error("❌ Failed to load user profile:", error);
-    }
-  };
+
 
   const updateProfile = async (data: { name?: string; email?: string; phone?: string }): Promise<boolean> => {
     try {

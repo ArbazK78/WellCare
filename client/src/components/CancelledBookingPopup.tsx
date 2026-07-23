@@ -16,12 +16,13 @@ const CancelledBookingPopup = ({ booking, onDismiss }: CancelledBookingPopupProp
       onDismiss();
       return;
     }
-
-    const timer = setInterval(() => {
+    // FM-4 fix: Used setTimeout since timeLeft is in the dependency array,
+    // avoiding the setInterval creation/destruction staircase anti-pattern.
+    const timer = setTimeout(() => {
       setTimeLeft((prev) => prev - 1);
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => clearTimeout(timer);
   }, [timeLeft, onDismiss]);
 
   return (

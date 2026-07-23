@@ -3,10 +3,6 @@ const jwt = require("jsonwebtoken");
 
 const verifyUserToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  console.log("🛡️ [User] Verifying token...");
-  console.log("Authorization Header:", authHeader);
-  console.log("🧾 All headers:", req.headers);
-
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ message: "No token provided" });
@@ -16,6 +12,9 @@ const verifyUserToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.role && decoded.role !== 'customer') {
+      return res.status(403).json({ message: "Forbidden: Invalid token role" });
+    }
     req.userId = decoded.userId; // ✅ For use in controller
     next();
   } catch (err) {

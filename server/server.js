@@ -6,19 +6,35 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// BL-3 fix: Add helmet for basic security headers
+app.use(helmet());
+
+// BL-1 fix: Add basic rate limiting to prevent brute force attacks
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // Limit each IP to 300 requests per `window` (here, per 15 minutes)
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api', apiLimiter);
+
 app.use(cors({
-  origin: 'http://localhost:8080',
+  // BM-8 fix: Allow configurable origin via env variable for production
+  origin: process.env.CLIENT_URL || 'http://localhost:8080',
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   optionsSuccessStatus: 200, // ✅ for legacy browser support
 
 }));
-app.use(express.json());
+// BM-9 fix: Add a strict 1MB size limit to JSON parsing to prevent DoS via large payloads
+app.use(express.json({ limit: '1mb' }));
 
 // Mount routes
 const guideRoutes = require('./src/routes/guideRoutes');
@@ -28,6 +44,16 @@ const bookingRoutes = require('./src/routes/bookingRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
 
+// BM-10 fix: Validate MongoDB ObjectId format for common params to prevent CastError -> 500
+const { Types: { ObjectId } } = mongoose;
+const validateObjectId = (req, res, next, id) => {
+  if (!ObjectId.isValid(id)) return res.status(400).json({ message: 'Invalid ID format' });
+  next();
+};
+app.param('id', validateObjectId);
+app.param('bookingId', validateObjectId);
+app.param('guideId', validateObjectId);
+
 app.use('/api/guides', guideRoutes);
 app.use('/api', authRoutes);
 app.use('/api/users', userRoutes);
@@ -36,10 +62,32 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
 
 
+const dispatchService = require('./src/services/dispatchService');
+
+// BL-4 fix: MongoDB reconnection handling
+mongoose.connection.on('disconnected', () => {
+  console.log('❌ MongoDB disconnected!');
+});
+mongoose.connection.on('reconnected', () => {
+  console.log('✅ MongoDB reconnected!');
+});
+
 // DB connection (URI kept secret — loaded from .env);
-mongoose.connect(process.env.MONGO_URI)
+mongoose.connect(process.env.MONGO_URI, {
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+})
   .then(() => {
     console.log('✅ MongoDB connected');
+    
+    // BH-2 fix: Background task to auto-rotate expired offers every 10 seconds.
+    // This removes the massive DB pressure of doing it on every guide poll.
+    setInterval(() => {
+      dispatchService.autoRotateExpiredOffers().catch(err => 
+        console.error('Error in background offer rotation:', err)
+      );
+    }, 10000);
+
     app.listen(PORT, () => {
       console.log(`🚀 Server running at http://localhost:${PORT}`);
     });

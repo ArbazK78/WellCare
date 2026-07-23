@@ -52,23 +52,21 @@ const Guides = () => {
   const specialtyDefaults = dummyGuides.map(g => g.specialties);
   const bioDefaults = dummyGuides.map(g => g.bio);
 
-  const allGuides = [
-    ...dummyGuides,
-    ...guides.map((guide, index)  => ({
-      id: guide._id || guide.id,
-      name: guide.name,
-      image: guide.image || "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&h=300&fit=crop&auto=format&q=80",
-      rating: guide.rating || 5.0,
-      yearsExperience: guide.experience ? parseInt(guide.experience) : 1,
-      location: guide.location || "Ahmedabad",
-      specialties: guide.specialties && guide.specialties.length > 0
-        ? guide.specialties
-        : specialtyDefaults[index % specialtyDefaults.length],
-      bio: guide.bio?.trim()
-        ? guide.bio
-        : bioDefaults[index % bioDefaults.length]
-    }))
-  ];
+  // FH-10 fix: Removed hardcoded dummyGuides so only real DB guides are shown
+  const allGuides = guides.map((guide, index) => ({
+    id: guide._id || guide.id,
+    name: guide.name,
+    image: guide.image || "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&h=300&fit=crop&auto=format&q=80",
+    rating: guide.rating || 5.0,
+    yearsExperience: guide.experience ? parseInt(guide.experience) : 1,
+    location: guide.location || "Ahmedabad",
+    specialties: guide.specialties && guide.specialties.length > 0
+      ? guide.specialties
+      : specialtyDefaults[index % specialtyDefaults.length],
+    bio: guide.bio?.trim()
+      ? guide.bio
+      : bioDefaults[index % bioDefaults.length]
+  }));
 
   useEffect(() => {
     if (pageTopRef.current) {

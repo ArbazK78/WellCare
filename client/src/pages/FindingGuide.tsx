@@ -37,6 +37,7 @@ const FindingGuide = () => {
 
   const intervalRef     = useRef<ReturnType<typeof setInterval> | null>(null);
   const captionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const captionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null); // FH-4 fix: Track timeout for unmount cleanup
   const hasPlayedRef    = useRef(false);
 
   // ── Poll booking status ────────────────────────────────────────────────────
@@ -76,7 +77,7 @@ const FindingGuide = () => {
   useEffect(() => {
     captionTimerRef.current = setInterval(() => {
       setCaptionVisible(false);
-      setTimeout(() => {
+      captionTimeoutRef.current = setTimeout(() => {
         setCaptionIndex(i => (i + 1) % CAPTIONS.length);
         setCaptionVisible(true);
       }, 400); // fade-out duration
@@ -84,6 +85,7 @@ const FindingGuide = () => {
 
     return () => {
       if (captionTimerRef.current) clearInterval(captionTimerRef.current);
+      if (captionTimeoutRef.current) clearTimeout(captionTimeoutRef.current); // FH-4 fix: Clear timeout on unmount
     };
   }, []);
 

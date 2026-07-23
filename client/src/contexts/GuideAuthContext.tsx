@@ -65,7 +65,7 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
           // they are transient and should not destroy a valid session.
           if (error?.response?.status === 401) {
             console.warn("⚠️ Guide token rejected by server — logging out.");
-            guideLogout();
+            await guideLogout();
           } else {
             console.warn("⚠️ Could not verify guide session (non-auth error). Keeping token.", error?.message);
           }
@@ -93,6 +93,7 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
       // Update state
       setIsAuthenticated(true);
       setCurrentGuide(data.guide);
+      setIsOnline(data.guide.isOnline ?? false); // FH-3 fix: Restore online status from login response
       
       return "success";
     } catch (error) {
@@ -114,17 +115,31 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
 
   ): Promise<string> => {
     try {
-      const { data } = await api.post("/guides/register", {
-        name,
-        phone,
-        email,
-        password,
-        location,
-        experience,
-        specialties,
-        bio,
-        profile_picture ,
-        government_id,
+      const formData = new FormData();
+      formData.append("name", name);
+      formData.append("phone", phone);
+      formData.append("password", password);
+      
+      if (email) formData.append("email", email);
+      if (location) formData.append("location", location);
+      if (experience) formData.append("experience", experience);
+      if (bio) formData.append("bio", bio);
+      
+      // Send array items individually
+      if (specialties && specialties.length > 0) {
+        specialties.forEach(spec => formData.append("specialties[]", spec));
+      }
+      
+      // Append files correctly
+      if (profile_picture && profile_picture.length > 0) {
+        formData.append("profile_picture", profile_picture[0]);
+      }
+      if (government_id && government_id.length > 0) {
+        formData.append("government_id", government_id[0]);
+      }
+
+      const { data } = await api.post("/guides/register", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
       });
 
       console.log("✅ Guide registered:", data);
@@ -142,7 +157,8 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
 
   const getAllApprovedGuides = async (): Promise<Guide[]> => {
     try {
-      const { data } = await api.get('/guides/all'); // TEMP: fetch all guides for dev
+      // FM-1 fix: Pass status=approved to backend so we don't fetch pending/rejected guides
+      const { data } = await api.get('/guides/all?status=approved'); 
       return data;
     } catch (error) {
       console.error("Error fetching approved guides:", error);

@@ -200,9 +200,7 @@ const Dashboard = () => {
     workAddress: "",
   });
 
-  useEffect(() => {
-    setLocalBookings(bookings);
-  }, [bookings]);
+  // FM-7 fix: Removed duplicate useEffect for setLocalBookings that caused double re-renders
 
   // Load saved addresses from localStorage on mount
   useEffect(() => {
@@ -690,7 +688,7 @@ const Dashboard = () => {
                                 <div className="flex items-center text-gray-500">
                                   <span className="font-medium text-gray-900">
                                     Booking #{booking._id.substring(1, 6)} • {(booking as any).completedAt ? (
-                                      <>Today at {formatBookingTime((booking as any).completedAt)}</>
+                                      <>Completed {formatBookingDate((booking as any).completedAt)} at {formatBookingTime((booking as any).completedAt)}</>
                                     ) : (
                                       <>{formatBookingDate(booking.date)}</>
                                     )}
@@ -781,7 +779,9 @@ const Dashboard = () => {
                           <div className="text-xs text-gray-500 uppercase font-medium mt-1">Trips</div>
                         </div>
                         <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
-                          <div className="text-2xl font-bold text-blue-600">4.8</div>
+                          <div className="text-2xl font-bold text-blue-600">
+                            {(user as any)?.rating ? (user as any).rating.toFixed(1) : "5.0"}
+                          </div>
                           <div className="text-xs text-gray-500 uppercase font-medium mt-1">Rating</div>
                         </div>
                         <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
@@ -1024,7 +1024,7 @@ const Dashboard = () => {
       </Dialog>
 
       {/* Payment Success Modal */}
-      <Dialog open={!!paymentBooking} onOpenChange={() => {}}>
+      <Dialog open={!!paymentBooking} onOpenChange={(open) => !open && setPaymentBooking(null)}>
         <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-[#1e1e1e] border-0 rounded-2xl">
           <div className="bg-green-500 p-8 flex flex-col items-center text-center">
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-4">

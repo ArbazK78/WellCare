@@ -4,7 +4,6 @@ const router = express.Router();
 const bookingController = require("../controllers/bookingController");
 const verifyUserToken = require("../middlewares/verifyUserToken"); // Assuming this exists
 const verifyGuideToken = require("../middlewares/verifyGuideToken"); // Guide token verification
-const authenticateUser = require("../middlewares/auth"); // Or whatever your general auth middleware is named
 const {
   getBookingStatus,
   getBookingById,
@@ -17,7 +16,15 @@ const {
   updateBookingStatus
 } = bookingController;
 
+const rateLimit = require("express-rate-limit");
 
+// BH-1 fix: Rate limit PIN attempts to prevent brute-forcing the 4-digit PIN.
+// Max 5 attempts per 15 minutes.
+const pinAttemptLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 requests per windowMs
+  message: { message: "Too many failed PIN attempts. Please try again after 15 minutes." }
+});
 // POST /api/bookings - Create a booking
 router.post("/", verifyUserToken, bookingController.createBooking);
 // router.post("/", bookingController.createBooking);
@@ -46,7 +53,7 @@ router.put("/:bookingId/guide-pay", verifyGuideToken, bookingController.payBooki
 router.put('/:bookingId/status', verifyGuideToken, updateBookingStatus);
 
 // POST /api/bookings/:bookingId/start-trip - Start trip with OTP
-router.post("/:bookingId/start-trip", verifyGuideToken, bookingController.startTrip); // ✅ Status update endpoint
+router.post("/:bookingId/start-trip", verifyGuideToken, pinAttemptLimiter, bookingController.startTrip); // ✅ Status update endpoint
 
 router.get('/:bookingId/status', verifyUserToken, getBookingStatus);
 router.get('/:bookingId', verifyUserToken, getBookingById); // Full booking fetch for confirmation page

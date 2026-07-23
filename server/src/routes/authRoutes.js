@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken'); // BC-9 fix: was missing, caused runtime crash on /refresh-token
 const User = require('../models/User');
-// const authController = require('../controllers/authController');
+const authController = require('../controllers/authController');
 
-
-// POST /auth/verify – user registration or lookup
+// POST /auth/verify – user registration or lookup (used with OTP flow on frontend)
 router.post('/auth/verify', async (req, res) => {
   const { phone, name, email } = req.body;
 
@@ -20,47 +20,44 @@ router.post('/auth/verify', async (req, res) => {
       await user.save();
     }
 
-    res.json(user);
+    // Return a safe subset — never expose safetyPin here
+    res.json({
+      _id: user._id,
+      name: user.name,
+      phone: user.phone,
+      email: user.email,
+    });
   } catch (err) {
     console.error("Auth verification error:", err);
     res.status(500).json({ error: "User verification failed." });
   }
 });
 
-// Backend: authRoutes.js
-// routes/auth.js
+// POST /refresh-token – BC-9 fix: jwt is now imported above
+// Verifies the existing token without ignoring expiration (the previous
+// ignoreExpiration: true was a critical security bug — any leaked token
+// could generate fresh tokens indefinitely).
 router.post('/refresh-token', (req, res) => {
   const oldToken = req.headers.authorization?.split(' ')[1];
-  
+
   if (!oldToken) return res.status(401).json({ error: 'No token provided' });
 
   try {
-    // Verify token while ignoring expiration
-    const decoded = jwt.verify(oldToken, process.env.JWT_SECRET, { ignoreExpiration: true });
-    
-    // Generate new token
+    const decoded = jwt.verify(oldToken, process.env.JWT_SECRET);
+
     const newToken = jwt.sign(
-      { userId: decoded.userId }, 
+      { userId: decoded.userId, role: decoded.role || 'customer' },
       process.env.JWT_SECRET,
-      { expiresIn: '1h' } // New token lifespan
+      { expiresIn: '7d' }
     );
 
     res.json({ newToken });
   } catch (err) {
-    res.status(401).json({ error: 'Invalid token signature' });
+    res.status(401).json({ error: 'Invalid or expired token' });
   }
 });
 
-router.get('/test-auth', (req, res) => {
-  console.log("✅ /api/test-auth hit!");
-  res.send('Auth routes are working!');
-});
-router.post('/test-post', (req, res) => {
-  console.log("✅ /api/test-post hit!");
-  res.send('Post route is working!');
-});
-const authController = require('../controllers/authController'); // Require it here
+// POST /google – Google OAuth sign-in
 router.post('/google', authController.googleSignIn);
-
 
 module.exports = router;

@@ -80,12 +80,13 @@ const GuideLayout = ({ children }: { children: React.ReactNode }) => {
   }, [dismissIncoming]);
 
   // ── Refresh Dashboard when a cancellation is received ─────────────────────
-  useEffect(() => {
-    if (cancelledBooking) {
-      // Refresh the dashboard immediately so the cancelled booking disappears from the Active tab
-      navigate("/guide/dashboard", { state: { refresh: Date.now() } });
-    }
-  }, [cancelledBooking, navigate]);
+  // FH-6 fix: Removed immediate navigation on `cancelledBooking` so the guide
+  // is forced to acknowledge the modal popup before they are redirected.
+  
+  const handleDismissCancelled = useCallback(() => {
+    dismissCancelled();
+    navigate("/guide/dashboard", { state: { refresh: Date.now() } });
+  }, [dismissCancelled, navigate]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -210,7 +211,7 @@ const GuideLayout = ({ children }: { children: React.ReactNode }) => {
       {cancelledBooking && (
         <CancelledBookingPopup
           booking={cancelledBooking}
-          onDismiss={dismissCancelled}
+          onDismiss={handleDismissCancelled}
         />
       )}
     </div>

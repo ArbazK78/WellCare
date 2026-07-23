@@ -16,10 +16,24 @@ router.post('/login', (req, res) => {
     return res.status(400).json({ message: 'Username and password are required' });
   }
 
-  const validUsername = process.env.ADMIN_USERNAME;
-  const validPassword = process.env.ADMIN_PASSWORD;
+  const crypto = require('crypto');
+  const validUsername = process.env.ADMIN_USERNAME || '';
+  const validPassword = process.env.ADMIN_PASSWORD || '';
 
-  if (username !== validUsername || password !== validPassword) {
+  // BM-11 fix: Prevent timing attacks
+  let isMatch = true;
+  const bufUser = Buffer.from(username);
+  const bufValidUser = Buffer.from(validUsername);
+  if (bufUser.length !== bufValidUser.length || !crypto.timingSafeEqual(bufUser, bufValidUser)) {
+    isMatch = false;
+  }
+  const bufPass = Buffer.from(password);
+  const bufValidPass = Buffer.from(validPassword);
+  if (bufPass.length !== bufValidPass.length || !crypto.timingSafeEqual(bufPass, bufValidPass)) {
+    isMatch = false;
+  }
+
+  if (!isMatch) {
     return res.status(401).json({ message: 'Invalid admin credentials' });
   }
 

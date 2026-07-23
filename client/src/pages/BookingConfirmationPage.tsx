@@ -31,7 +31,9 @@ const BookingConfirmationPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!booking && bookingId) {
+    // FM-6 fix: Use locationState instead of the mutable `booking` state to determine if fetch is needed,
+    // and removed `booking` from dependency array to prevent fetch loops.
+    if (!locationState?.bookingData && bookingId) {
       setLoading(true);
       api.get(`/bookings/${bookingId}`)
         .then(response => {
@@ -44,7 +46,7 @@ const BookingConfirmationPage = () => {
           setLoading(false);
         });
     }
-  }, [bookingId, booking]);
+  }, [bookingId, locationState?.bookingData]);
 
   if (loading) {
     return (

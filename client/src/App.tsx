@@ -45,9 +45,7 @@ const CustomerRouteGuard = ({ children }: { children: React.ReactNode }) => {
   const isGuideRoute = location.pathname.startsWith("/guide");
 
   useEffect(() => {
-    // Temporarily disabled so you can test both User and Guide flows 
-    // simultaneously in two tabs within the same browser!
-    /*
+    // FC-5 fix: Re-enabled to enforce strict boundary between portals.
     if (!isGuideRoute) {
       const guideToken = localStorage.getItem("guide_token");
       if (guideToken) {
@@ -55,7 +53,6 @@ const CustomerRouteGuard = ({ children }: { children: React.ReactNode }) => {
         localStorage.removeItem("guide_data");
       }
     }
-    */
   }, [isGuideRoute]);
 
   return <>{children}</>;
@@ -63,7 +60,15 @@ const CustomerRouteGuard = ({ children }: { children: React.ReactNode }) => {
 
 const AppRoutes = () => {
   const { checkingAuth } = useAuth();
-  if (checkingAuth) return null;
+  
+  if (checkingAuth) {
+    // FC-6 fix: Show a loading state instead of a completely blank screen
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <CustomerRouteGuard>
@@ -123,8 +128,11 @@ const AppRoutes = () => {
   );
 };
 
+// FC-4 fix: Instantiate QueryClient outside the component to prevent recreating it on every render
+const queryClient = new QueryClient();
+
 const App = () => (
-  <QueryClientProvider client={new QueryClient()}>
+  <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
         <GuideAuthProvider>

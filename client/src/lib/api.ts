@@ -1,10 +1,11 @@
 // src/lib/api.ts
-import axios, { AxiosRequestConfig, InternalAxiosRequestConfig, AxiosHeaders } from 'axios';
+import axios, { InternalAxiosRequestConfig } from 'axios';
 import { jwtDecode } from 'jwt-decode';
-import { logoutGuide } from "@/utils/logoutHelper";
+import { logoutGuide, logoutCustomer } from "@/utils/logoutHelper";
 
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  // FC-2 fix: Use env variable for API base URL, fallback to localhost for dev
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
   withCredentials: false,
 });
 
@@ -13,9 +14,6 @@ api.interceptors.request.use(
     let token: string | null = null;
 
     // Guide endpoints need guide_token:
-    //   /guides/*                           (guide profile, auth, status)
-    //   /bookings/guide/*                   (guide's pending/accepted/completed)
-    //   PUT /bookings/:id/status            (guide accepts/rejects/completes a booking)
     const isGuideEndpoint =
       config.url?.startsWith('/guides') ||
       config.url?.startsWith('/bookings/guide') ||
@@ -26,28 +24,24 @@ api.interceptors.request.use(
       ? localStorage.getItem('guide_token')
       : localStorage.getItem('userToken');
 
-
-    console.log(`🔥 [Interceptor] Requesting: ${config.method} ${config.url}`);
-    console.log(`🔑 [Interceptor] Selected Token: ${token ? token.slice(0, 10) + '...' : 'absent'}`);
-
     if (token) {
       try {
         const decoded = jwtDecode<{ exp: number }>(token);
         const isExpired = decoded.exp * 1000 < Date.now();
 
         if (isExpired) {
-          console.warn('⚠️ [Interceptor] Token expired.');
-          logoutGuide();
+          // FC-1 fix: Redirect guide to guide login, customer to customer login
+          if (isGuideEndpoint) {
+            logoutGuide();
+          } else {
+            logoutCustomer();
+          }
         } else {
-          // Directly set the Authorization header on the existing headers object
           config.headers.Authorization = `Bearer ${token}`;
-          console.log('✅ [Interceptor] Attached Authorization header.');
         }
       } catch (err) {
-        console.error('❌ [Interceptor] Token decoding failed:', err);
+        // Silently handle decoding errors in production
       }
-    } else {
-      console.warn('⚠️ [Interceptor] No token found for this request.');
     }
 
     return config;

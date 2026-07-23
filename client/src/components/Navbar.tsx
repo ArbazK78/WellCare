@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Home, BookOpen, Info, Users } from "lucide-react";
+import { Home, BookOpen, Info, Users, Calendar } from "lucide-react";
 import UserAuthButton from "./UserAuthButton";
 import {
   NavigationMenu,
@@ -65,7 +65,7 @@ const Navbar = () => {
               <NavigationMenuItem>
                 <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
                   <Link to="/">
-                    <BookOpen className="mr-2 h-4 w-4" />
+                    <Home className="mr-2 h-4 w-4" />
                     Home
                   </Link>
                 </NavigationMenuLink>
@@ -74,7 +74,7 @@ const Navbar = () => {
               <NavigationMenuItem>
                 <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
                   <Link to="/book">
-                    <BookOpen className="mr-2 h-4 w-4" />
+                    <Calendar className="mr-2 h-4 w-4" />
                     Book a Guide
                   </Link>
                 </NavigationMenuLink>
@@ -83,7 +83,7 @@ const Navbar = () => {
               <NavigationMenuItem>
                 <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
                   <Link to="/guides">
-                    <BookOpen className="mr-2 h-4 w-4" />
+                    <Users className="mr-2 h-4 w-4" />
                     Guides
                   </Link>
                 </NavigationMenuLink>
@@ -92,7 +92,7 @@ const Navbar = () => {
               <NavigationMenuItem>
                 <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
                   <Link to="/about">
-                    <BookOpen className="mr-2 h-4 w-4" />
+                    <Info className="mr-2 h-4 w-4" />
                     About Us
                   </Link>
                 </NavigationMenuLink>

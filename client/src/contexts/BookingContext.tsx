@@ -19,7 +19,7 @@ export type Customer = {
 
 export type Booking = {
   _id: string;
-  status: "pending" | "accepted" | "rejected" | "completed";
+  status: "pending" | "accepted" | "rejected" | "completed" | "arrived" | "in_progress" | "cancelled";
   vehicleType: "scooter" | "cab";
   pickupLocation: string;
   destinationAddress: string;
@@ -49,27 +49,6 @@ interface BookingContextType {
 
 const BookingContext = createContext<BookingContextType | undefined>(undefined);
 
-// Sample fallback guides
-const sampleGuides: Guide[] = [
-  {
-    _id: 1,
-    name: "Rajesh Kumar",
-    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop&auto=format&q=80",
-    rating: 4.8
-  },
-  {
-    _id: 2,
-    name: "Priya Sharma",
-    image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&h=300&fit=crop&auto=format&q=80",
-    rating: 4.9
-  },
-  {
-    _id: 3,
-    name: "Amit Patel",
-    image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&h=300&fit=crop&auto=format&q=80",
-    rating: 4.7
-  }
-];
 
 export const BookingProvider = ({ children }: { children: ReactNode }) => {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -101,7 +80,7 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
     } else {
       setBookings([]);
     }
-  }, [isAuthenticated, api]); // Include api in the dependency array
+  }, [isAuthenticated]); // FM-5 fix: Removed `api` from the dependency array
 
   useEffect(() => {
     fetchUserBookings();
@@ -241,14 +220,4 @@ export const useBookings = () => {
   }
   return context;
 };
-
-export const getRandomGuide = async (): Promise<Guide> => {
-  try {
-    const { data } = await api.get('/guides/random');
-    return data;
-  } catch (error) {
-    console.error("Error fetching random guide:", error);
-    const randomIndex = Math.floor(Math.random() * sampleGuides.length);
-    return sampleGuides[randomIndex];
-  }
-};
+

@@ -133,12 +133,18 @@ export const useBookingNotifications = (isOnline: boolean) => {
       return;
     }
 
+    let isMounted = true;
+    
     // Going online — seed first, then start polling
     seedExisting().then(() => {
-      intervalRef.current = setInterval(poll, POLL_INTERVAL_MS);
+      // FH-7 fix: Don't set interval if the component unmounted while seeding
+      if (isMounted) {
+        intervalRef.current = setInterval(poll, POLL_INTERVAL_MS);
+      }
     });
 
     return () => {
+      isMounted = false;
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;

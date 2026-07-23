@@ -25,7 +25,7 @@ exports.register = async (req, res) => {
     await user.save();
     
     // Create token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ userId: user._id, role: 'customer' }, process.env.JWT_SECRET, {
       expiresIn: '7d'
     });
     
@@ -57,7 +57,7 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: 'Phone number not registered' });
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ userId: user._id, role: 'customer' }, process.env.JWT_SECRET, {
       expiresIn: '7d'
     });
 

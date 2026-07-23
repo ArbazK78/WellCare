@@ -70,27 +70,12 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
   const isArrived = booking.status === 'arrived';
   const isInProgress = booking.status === 'in_progress';
 
-  // For the guide's location when they are en route to pickup, 
-  // since we don't have live GPS streaming yet, we will mock their start location
-  // slightly offset from the pickup location to simulate travel, or just use a fixed default.
-  // In a real app, this would be a live GPS coordinate passed via WebSocket.
-  const mockGuideLocation = { 
-    lat: (pickupData.lat || 23.0225) + 0.01, 
-    lng: (pickupData.lng || 72.5714) + 0.01 
+  // FM-2 fix: Never use the guide's string city (e.g., "Ahmedabad") as a literal route start.
+  // We use a small offset from pickupData to simulate the guide arriving.
+  let guideLocationFromDb: any = { 
+    lat: (pickupData.lat || 28.6139) + 0.005, 
+    lng: (pickupData.lng || 77.2090) + 0.005 
   };
-
-  const guideData = booking.guide ? parseLocation((booking.guide as any).location || '') : null;
-  
-  let guideLocationFromDb: any;
-  if (guideData?.lat && guideData?.lng) {
-    guideLocationFromDb = { lat: guideData.lat, lng: guideData.lng };
-  } else if (guideData?.address) {
-    guideLocationFromDb = guideData.address;
-  } else if (guideData?.name && guideData.name !== "Unknown") {
-    guideLocationFromDb = guideData.name;
-  } else {
-    guideLocationFromDb = mockGuideLocation;
-  }
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -137,7 +122,8 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
         }
       }
     );
-  }, [isLoaded, isInProgress, routeMode, directions, booking, pickupData.lat, pickupData.lng, pickupData.address, pickupData.name, destinationData.lat, destinationData.lng, destinationData.address, destinationData.name]);
+    // FM-3 fix: Removed `booking` and `directions` from dependency array to prevent infinite re-fetches on poll
+  }, [isLoaded, isInProgress, routeMode, pickupData.lat, pickupData.lng, pickupData.address, pickupData.name, destinationData.lat, destinationData.lng, destinationData.address, destinationData.name]);
 
   const defaultCenter = pickupData.lat && pickupData.lng ? { lat: pickupData.lat, lng: pickupData.lng } : { lat: 23.0225, lng: 72.5714 };
 

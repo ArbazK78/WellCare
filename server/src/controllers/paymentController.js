@@ -26,6 +26,11 @@ exports.createOrder = async (req, res) => {
       return res.status(404).json({ message: 'Booking not found' });
     }
 
+    // BC-5 fix: Only the customer who owns this booking can initiate payment
+    if (!booking.customer || booking.customer.toString() !== req.userId) {
+      return res.status(403).json({ message: 'Forbidden: You do not own this booking' });
+    }
+
     if (booking.paymentStatus === 'paid') {
       return res.status(400).json({ message: 'Booking is already paid' });
     }
@@ -73,6 +78,11 @@ exports.verifyPayment = async (req, res) => {
     const booking = await Booking.findById(bookingId);
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    // BC-5 fix: Only the customer who owns this booking can verify a payment
+    if (!booking.customer || booking.customer.toString() !== req.userId) {
+      return res.status(403).json({ message: 'Forbidden: You do not own this booking' });
     }
 
     // Verify signature using crypto

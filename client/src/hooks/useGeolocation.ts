@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToast } from './use-toast';
 
 export interface Coordinates {
   lat: number;
@@ -9,10 +10,13 @@ export function useGeolocation() {
   const [location, setLocation] = useState<Coordinates | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!('geolocation' in navigator)) {
-      setError('Geolocation is not supported by your browser');
+      const msg = 'Geolocation is not supported by your browser';
+      setError(msg);
+      toast({ title: "Location Error", description: msg, variant: "destructive" });
       setLoading(false);
       return;
     }
@@ -26,7 +30,9 @@ export function useGeolocation() {
         setLoading(false);
       },
       (err) => {
-        setError(err.message);
+        const msg = err.message || "Could not fetch your location.";
+        setError(msg);
+        toast({ title: "Location Error", description: msg, variant: "destructive" });
         setLoading(false);
       },
       {

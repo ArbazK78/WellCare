@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { Booking } from '@/contexts/BookingContext';
 import { parseLocation, cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 const libraries: ("places")[] = ["places"];
 
@@ -58,10 +59,12 @@ interface ActiveRideViewProps {
 
 export default function ActiveRideView({ booking, onArrive, onCancel, onStartTrip, onCompleteTrip }: ActiveRideViewProps) {
   const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
     libraries,
   });
 
+  const { toast } = useToast();
   const { location: guideLocation } = useGeolocation();
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [routeMode, setRouteMode] = useState<'pickup' | 'dropoff' | null>(null);
@@ -257,10 +260,23 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="icon" className="rounded-full w-10 h-10 border-gray-300 text-gray-700">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="rounded-full w-10 h-10 border-gray-300 text-gray-700"
+              onClick={() => {
+                const phone = booking.customer?.phone || (booking as any).phone;
+                if (phone) window.open(`tel:${phone}`);
+              }}
+            >
               <PhoneCall size={18} />
             </Button>
-            <Button variant="outline" size="icon" className="rounded-full w-10 h-10 border-gray-300 text-gray-700">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="rounded-full w-10 h-10 border-gray-300 text-gray-700"
+              onClick={() => toast({ title: "Coming soon", description: "In-app chat will be available in the next update." })}
+            >
               <MessageSquare size={18} />
             </Button>
           </div>

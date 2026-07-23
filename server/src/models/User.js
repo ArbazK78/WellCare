@@ -20,7 +20,8 @@ const userSchema = new mongoose.Schema({
 // Hash password before saving (only if password is being set/modified)
 userSchema.pre('save', async function (next) {
   if (!this.safetyPin) {
-    this.safetyPin = Math.floor(1000 + Math.random() * 9000).toString();
+    const crypto = require('crypto');
+    this.safetyPin = crypto.randomInt(1000, 10000).toString();
   }
 
   if (!this.isModified('password') || !this.password) return next(); // ✅ skip if no password

@@ -103,8 +103,11 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
 
   const handleAccept = useCallback(async () => {
     setIsActing(true);
-    await onAccept(booking._id);
-    setIsActing(false);
+    try {
+      await onAccept(booking._id);
+    } finally {
+      setIsActing(false);
+    }
   }, [booking._id, onAccept]);
 
   const handleDecline = useCallback(() => {

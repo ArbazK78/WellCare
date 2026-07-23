@@ -1,12 +1,12 @@
 const Guide = require('../models/Guide');
 const mongoose = require('mongoose');
-
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 exports.registerGuide = async (req, res) => {
   try {
     const { name, phone, password, email, location, experience, specialties, bio } = req.body;
 
-    // Check if guide already exists
     const existingGuide = await Guide.findOne({ phone });
     if (existingGuide) {
       return res.status(400).json({ message: "Guide with this phone already exists" });
@@ -16,8 +16,8 @@ exports.registerGuide = async (req, res) => {
       name,
       phone,
       email,
-      password, // This will be hashed via pre-save hook in model
-      status: 'pending', // default
+      password, // hashed via pre-save hook in model
+      status: 'pending',
       location,
       experience,
       specialties,
@@ -26,6 +26,7 @@ exports.registerGuide = async (req, res) => {
 
     await newGuide.save();
 
+    // BC-12 fix: Never return password hash — return only safe fields
     res.status(201).json({
       message: "Guide registration submitted successfully",
       guide: {
@@ -33,7 +34,7 @@ exports.registerGuide = async (req, res) => {
         name: newGuide.name,
         phone: newGuide.phone,
         email: newGuide.email,
-        status: newGuide.status
+        status: newGuide.status,
       }
     });
   } catch (error) {
@@ -42,10 +43,23 @@ exports.registerGuide = async (req, res) => {
   }
 };
 
-//Login Function
-
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+// Helper to build a safe guide object (never exposes password hash)
+const safeGuide = (guide) => ({
+  _id: guide._id,
+  name: guide.name,
+  phone: guide.phone,
+  email: guide.email,
+  status: guide.status,
+  isOnline: guide.isOnline,
+  location: guide.location,
+  experience: guide.experience,
+  specialties: guide.specialties,
+  bio: guide.bio,
+  image: guide.image,
+  rating: guide.rating,
+  languages: guide.languages,
+  vehicleType: guide.vehicleType,
+});
 
 exports.loginGuide = async (req, res) => {
   try {
@@ -61,28 +75,21 @@ exports.loginGuide = async (req, res) => {
       return res.status(401).json({ message: "Invalid password" });
     }
 
-    // Handle based on guide status
+    // BC-12 fix: Return only safe fields — no password hash
     if (guide.status === "pending") {
-      return res.status(200).json({
-        status: "pending",
-        guide
-      });
+      return res.status(200).json({ status: "pending", guide: safeGuide(guide) });
     }
 
     if (guide.status === "rejected") {
-      return res.status(200).json({
-        status: "rejected",
-        guide
-      });
+      return res.status(200).json({ status: "rejected", guide: safeGuide(guide) });
     }
-
 
     // If approved, force offline on new session
     guide.isOnline = false;
     await guide.save();
 
     const token = jwt.sign(
-      { id: guide._id }, // ✅ should match what's accessed in middleware
+      { id: guide._id, role: 'guide' },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -90,7 +97,7 @@ exports.loginGuide = async (req, res) => {
     res.json({
       status: "success",
       token,
-      guide
+      guide: safeGuide(guide),
     });
 
   } catch (error) {
@@ -99,52 +106,55 @@ exports.loginGuide = async (req, res) => {
   }
 };
 
-
+// BC-12 fix: add .select('-password') and auth check
 exports.getRandomGuide = async (req, res) => {
-  const guides = await Guide.find({ status: "approved" });
+  try {
+    const guides = await Guide.find({ status: "approved" }).select('-password');
 
-  if (!guides || guides.length === 0) {
-    return res.status(404).json({ message: "No approved guides found." });
+    if (!guides || guides.length === 0) {
+      return res.status(404).json({ message: "No approved guides found." });
+    }
+
+    const randomIndex = Math.floor(Math.random() * guides.length);
+    res.json(guides[randomIndex]);
+  } catch (error) {
+    console.error("Error fetching random guide:", error);
+    res.status(500).json({ message: "Server error" });
   }
-
-  // ✅ Select random guide
-  const randomIndex = Math.floor(Math.random() * guides.length);
-  const randomGuide = guides[randomIndex];
-
-  res.json(randomGuide);
-
 };
 
- // Reseting Password
+// BC-2 fix: Reset password is now protected — guide must be authenticated.
+// The guide provides their current password for verification before setting a new one.
+// NOTE: When the real OTP service is implemented, this will use OTP instead.
 exports.resetPassword = async (req, res) => {
-  const { phone, newPassword } = req.body;
+  const { currentPassword, newPassword } = req.body;
+  const guideId = req.guide?.id;
 
-  console.log("📦 DB NAME:", mongoose.connection.name);
-console.log("📦 COLLECTION:", Guide.collection.name);
+  if (!guideId) {
+    return res.status(401).json({ message: "Authentication required." });
+  }
 
-  console.log("Guide schema paths:", Object.keys(Guide.schema.paths));
-  console.log("RESET PASSWORD BODY:", req.body);
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ message: "Current password and new password are required." });
+  }
 
-
-  if (!phone || !newPassword) {
-    return res.status(400).json({ message: "Phone number and new password are required." });
+  if (newPassword.length < 8) {
+    return res.status(400).json({ message: "New password must be at least 8 characters." });
   }
 
   try {
-    const guide = await Guide.findOne({ phone });
-    console.log("FOUND GUIDE:", guide);
-
-
+    const guide = await Guide.findById(guideId);
     if (!guide) {
       return res.status(404).json({ message: "Guide not found." });
     }
 
-    console.log("Before:", guide.password);
+    const isMatch = await bcrypt.compare(currentPassword, guide.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Current password is incorrect." });
+    }
 
-    
-    guide.password = newPassword; // ✅ Plain text password
-        console.log("After:", guide.password);
-
+    // Assign new password — pre-save hook will hash it
+    guide.password = newPassword;
     await guide.save();
 
     res.status(200).json({ message: "Password reset successfully." });
@@ -153,4 +163,3 @@ console.log("📦 COLLECTION:", Guide.collection.name);
     res.status(500).json({ message: "Server error while resetting password." });
   }
 };
-

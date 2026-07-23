@@ -5,7 +5,8 @@ const Guide = require('../models/Guide');
 const dispatchService = require('../services/dispatchService');
 
 // Helper: generate a unique human-readable booking reference ID
-const generateBookingRefId = () => `B${Date.now()}`;
+const crypto = require('crypto');
+const generateBookingRefId = () => `B${Date.now()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
 
 // ---------------------------------------------------------------------------
 // CREATE BOOKING
@@ -44,8 +45,11 @@ exports.createBooking = async (req, res) => {
     console.log(`📋 Booking request → ${eligibleGuideIds.length} eligible guide(s)`);
 
     const bookingRefId = generateBookingRefId();
-    // Temporary Random Fare calculation between ₹100 and ₹500
-    const calculatedFare = Math.floor(Math.random() * (500 - 100 + 1) + 100);
+    // BM-6 fix: Replaced non-deterministic Math.random() to prevent fare gaming.
+    // Fare is now deterministically calculated based on vehicle type and location string lengths.
+    const baseFare = vehicleType === 'cab' ? 150 : 50;
+    const distanceProxy = (pickupLocation?.length || 0) + (destinationAddress?.length || 0);
+    const calculatedFare = baseFare + (distanceProxy * 2);
 
     const newBooking = new Booking({
       vehicleType,
@@ -129,6 +133,11 @@ exports.cancelBooking = async (req, res) => {
       return res.status(404).json({ message: 'Booking not found' });
     }
 
+    // BC-3 fix: Only the customer who created the booking can cancel it
+    if (!booking.customer || booking.customer.toString() !== req.userId) {
+      return res.status(403).json({ message: 'Forbidden: You do not own this booking' });
+    }
+
     booking.status = 'cancelled';
     booking.cancelReason = reason || 'No reason provided';
     booking.cancelledBy = 'customer';
@@ -145,28 +154,13 @@ exports.cancelBooking = async (req, res) => {
 // ---------------------------------------------------------------------------
 // PAY BOOKING (mark payment as completed)
 // ---------------------------------------------------------------------------
+// BC-4 / BC-8 fix: This legacy direct-pay endpoint is DISABLED.
+// All payments must go through Razorpay via POST /api/payments/create-order
+// and POST /api/payments/verify. Direct payment marking is not allowed.
 exports.payBooking = async (req, res) => {
-  const { bookingId } = req.params;
-
-  try {
-    const booking = await Booking.findById(bookingId);
-    
-    if (!booking) {
-      return res.status(404).json({ message: 'Booking not found' });
-    }
-
-    if (booking.status !== 'completed') {
-      return res.status(400).json({ message: 'Booking must be completed before payment can be resolved.' });
-    }
-
-    booking.paymentStatus = 'paid';
-    await booking.save();
-
-    res.status(200).json({ message: 'Payment completed successfully', booking });
-  } catch (error) {
-    console.error('❌ Error paying booking:', error);
-    res.status(500).json({ message: 'Server error while processing payment' });
-  }
+  return res.status(410).json({
+    message: 'Direct payment is no longer supported. Please use the Razorpay payment flow.',
+  });
 };
 
 // ---------------------------------------------------------------------------
@@ -206,6 +200,11 @@ exports.getBookingStatus = async (req, res) => {
       return res.status(404).json({ message: 'Booking not found' });
     }
 
+    // BC-6 fix: Only the customer who owns this booking can poll its status
+    if (!booking.customer || booking.customer.toString() !== req.userId) {
+      return res.status(403).json({ message: 'Forbidden: You do not own this booking' });
+    }
+
     res.json({ status: booking.status, guide: booking.guide });
   } catch (error) {
     console.error('❌ Error fetching booking status:', error);
@@ -231,7 +230,8 @@ exports.startTrip = async (req, res) => {
     }
 
     if (String(booking.customer.safetyPin).trim() !== String(pin).trim()) {
-      console.log(`❌ PIN mismatch: Expected ${booking.customer.safetyPin}, got ${pin}`);
+      // BC-10 fix: Never log the actual PIN value
+      console.log(`❌ PIN mismatch for booking ${bookingId}`);
       return res.status(400).json({ message: 'Invalid Safety PIN' });
     }
 
@@ -313,7 +313,7 @@ exports.updateBookingStatus = async (req, res) => {
       const booking = await Booking.findById(bookingId);
       if (!booking) return res.status(404).json({ message: 'Booking not found' });
       
-      const Guide = require('../models/Guide');
+      // BH-8 fix: Removed redundant Guide require inside hot function
       const onlineGuides = await Guide.find({ status: 'approved', isOnline: true });
       const onlineGuideIds = onlineGuides.map(g => g._id.toString()).filter(id => id !== guideId);
 
@@ -360,9 +360,9 @@ exports.getGuidePendingBookings = async (req, res) => {
   try {
     const guideId = req.guide.id;
     
-    // Check and rotate any expired offers across the system before querying
-    await dispatchService.autoRotateExpiredOffers();
-
+    // BH-2 fix: autoRotateExpiredOffers was moved to a background cron in server.js
+    // to prevent DB thrashing on every poll.
+    
     console.log('🔍 Fetching pending bookings for guide:', guideId);
 
     const pendingBookings = await Booking.find({
@@ -427,38 +427,24 @@ exports.getGuideCompletedBookings = async (req, res) => {
 };
 
 // ---------------------------------------------------------------------------
-// LEGACY: Accept booking (kept for backwards compat with old route)
+// LEGACY: acceptBooking — BC-7 fix: DISABLED. Was using user token on a guide
+// action with no guide ownership check. Use PUT /:id/status with guide token.
 // ---------------------------------------------------------------------------
 exports.acceptBooking = async (req, res) => {
-  try {
-    const booking = await Booking.findByIdAndUpdate(
-      req.params.bookingId,
-      { status: 'accepted' },
-      { new: true }
-    );
-    if (!booking) {
-      return res.status(404).json({ message: 'Booking not found' });
-    }
-    res.json({ message: 'Booking accepted successfully', booking });
-  } catch (error) {
-    console.error('❌ Error accepting booking:', error);
-    res.status(500).json({ message: 'Error accepting booking' });
-  }
+  return res.status(410).json({
+    message: 'This endpoint is deprecated. Use PUT /api/bookings/:id/status with a guide token.',
+  });
 };
 
 // ---------------------------------------------------------------------------
-// LEGACY: Get all pending bookings regardless of guide (kept for old routes)
+// LEGACY: getPendingBookings — BC-8 fix: DISABLED. Exposed all system bookings
+// to any authenticated user. Guide-specific pending bookings are at
+// GET /api/bookings/guide/pending (protected by verifyGuideToken).
 // ---------------------------------------------------------------------------
 exports.getPendingBookings = async (req, res) => {
-  try {
-    const pendingBookings = await Booking.find({ status: 'pending' })
-      .populate('customer', 'name')
-      .populate('guide', 'name');
-    res.json(pendingBookings);
-  } catch (error) {
-    console.error('❌ Error fetching pending bookings:', error);
-    res.status(500).json({ message: 'Error fetching pending bookings' });
-  }
+  return res.status(410).json({
+    message: 'This endpoint is deprecated. Guides should use GET /api/bookings/guide/pending.',
+  });
 };
 
 // ---------------------------------------------------------------------------

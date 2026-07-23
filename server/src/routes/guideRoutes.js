@@ -11,10 +11,10 @@ router.post('/test', (req, res) => {
   res.json({ message: "Test POST success", body: req.body });
 });
 
-// GET all approved guides
+// GET all approved guides — BC-12 fix: strip password hash
 router.get('/approved', async (req, res) => {
   try {
-    const guides = await Guide.find({ status: 'approved' });
+    const guides = await Guide.find({ status: 'approved' }).select('-password');
     res.json(guides);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch approved guides." });
@@ -42,37 +42,43 @@ router.post('/register', guideController.registerGuide);
 router.post('/login', guideController.loginGuide);
 
 
-// TEMP: Get all guides (ignore approval status for now)
+// GET all guides (can filter by status e.g., ?status=approved) — BC-12 fix: strip password hash
 router.get('/all', async (req, res) => {
   try {
-    const guides = await Guide.find(); // no filter
+    const query = {};
+    if (req.query.status) query.status = req.query.status;
+    
+    // FM-1 fix: Apply query filter to only fetch requested guides (e.g. approved)
+    const guides = await Guide.find(query).select('-password');
     res.json(guides);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch guides." });
   }
 });
 
-// PUT /guides/update-profile - update logged-in guide's profile
+// PUT /guides/update-profile — BC-11 fix: whitelist allowed fields to prevent mass-assignment
 router.put("/update-profile", verifyGuideToken, async (req, res) => {
   try {
-    console.log("🛠️ Update profile request received");
-
-    const guideId = req.guide.id; // ✅ This now works
-    const updateData = req.body;
-
-    console.log("Guide ID:", guideId);
-    console.log("Update Data:", updateData);
+    const guideId = req.guide.id;
 
     if (!guideId) {
-      console.error("❌ Guide ID missing from token");
       return res.status(400).json({ message: "Guide ID missing" });
+    }
+
+    // Only these fields can be updated by the guide themselves
+    const ALLOWED_FIELDS = ['name', 'email', 'bio', 'location', 'experience', 'specialties', 'languages', 'vehicleType', 'image'];
+    const updateData = {};
+    for (const field of ALLOWED_FIELDS) {
+      if (req.body[field] !== undefined) {
+        updateData[field] = req.body[field];
+      }
     }
 
     const updatedGuide = await Guide.findByIdAndUpdate(
       guideId,
       { $set: updateData },
       { new: true }
-    );
+    ).select('-password');
 
     if (!updatedGuide) {
       return res.status(404).json({ message: "Guide not found" });
@@ -87,8 +93,9 @@ router.put("/update-profile", verifyGuideToken, async (req, res) => {
 
 router.get('/random', guideController.getRandomGuide);
 
-// ✅ Route to reset password
-router.post('/reset-password', guideController.resetPassword);
+// BC-2 fix: /reset-password now requires guide authentication
+// The guide must provide their currentPassword to verify identity
+router.post('/reset-password', verifyGuideToken, guideController.resetPassword);
 
 // PUT /guides/:id/status — Admin only (approve/reject)
 // NOTE: The primary admin route is POST /api/admin/guides/:id/status
