@@ -19,6 +19,8 @@ export type Customer = {
 
 export type Booking = {
   _id: string;
+  bookingMode?: "now" | "schedule";
+  dispatchStartedAt?: string | null;
   status: "pending" | "accepted" | "rejected" | "completed" | "arrived" | "in_progress" | "cancelled";
   vehicleType: "scooter" | "cab";
   pickupLocation: string;
@@ -39,12 +41,7 @@ interface BookingContextType {
   bookings: Booking[];
   refreshBookings: () => Promise<void>;
   addBooking: (booking: Omit<Booking, "id" | "status" | "customer"> & { customerName: string, customerPhone: string, customerEmail?: string }) => Promise<string>;
-  getBookingsForGuide: (guideId: string | number) => Promise<Booking[]>;
-  getBookingsForCustomer: () => Promise<Booking[]>;
-  completeBooking: (_id: string) => Promise<boolean>;
   cancelBooking: (_id: string, reason: string) => Promise<boolean>;
-  acceptBooking: (_id: string) => Promise<boolean>;
-  rejectBooking: (_id: string, reason?: string) => Promise<boolean>;
 }
 
 const BookingContext = createContext<BookingContextType | undefined>(undefined);
@@ -111,82 +108,10 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const getBookingsForGuide = async (guide_Id: string | number) => {
-    try {
-      const { data } = await api.get(`/bookings/guide/${guide_Id}`);
-      return data;
-    } catch (error) {
-      console.error("Error fetching guide bookings:", error);
-      return bookings.filter(booking => booking.guide._id.toString() === guide_Id.toString());
-    }
-  };
-
-  const getBookingsForCustomer = async () => {
-    try {
-      const { data } = await api.get('/bookings/customer');
-      return data;
-    } catch (error) {
-      console.error("Error fetching customer bookings:", error);
-      return [];
-    }
-  };
-
-  const completeBooking = async (_id: string) => {
-    try {
-      await api.put(`/bookings/${_id}/status`, { status: "completed" });
-      setBookings(prev =>
-        prev.map(booking =>
-          booking._id === _id ? { ...booking, status: "completed" } : booking
-        )
-      );
-      return true;
-    } catch (error) {
-      console.error("Error completing booking:", error);
-      return false;
-    }
-  };
-
-  const acceptBooking = async (_id: string) => {
-    try {
-      await api.put(`/bookings/${_id}/status`, { status: "accepted" });
-      setBookings(prev =>
-        prev.map(booking =>
-          booking._id === _id ? { ...booking, status: "accepted" } : booking
-        )
-      );
-      return true;
-    } catch (error) {
-      console.error("Error accepting booking:", error);
-      return false;
-    }
-  };
-
-  const rejectBooking = async (_id: string, reason?: string) => {
-    try {
-      await api.put(`/bookings/${_id}/status`, {
-        status: "rejected",
-        rejectionReason: reason
-      });
-      setBookings(prev =>
-        prev.map(booking =>
-          booking._id === _id ? {
-            ...booking,
-            status: "rejected",
-            rejectionReason: reason
-          } : booking
-        )
-      );
-      return true;
-    } catch (error) {
-      console.error("Error rejecting booking:", error);
-      return false;
-    }
-  };
-
   const cancelBooking = async (_id: string, reason: string) => {
     try {
       await api.put(`/bookings/${_id}/cancel`, { reason });
-      setBookings(prev => prev.map(booking => 
+      setBookings(prev => prev.map(booking =>
         booking._id === _id ? { ...booking, status: "cancelled" } : booking
       ));
       return true;
@@ -201,12 +126,7 @@ export const BookingProvider = ({ children }: { children: ReactNode }) => {
       bookings,
       refreshBookings: fetchUserBookings,
       addBooking,
-      getBookingsForGuide,
-      getBookingsForCustomer,
-      completeBooking,
       cancelBooking,
-      acceptBooking,
-      rejectBooking
     }}>
       {children}
     </BookingContext.Provider>

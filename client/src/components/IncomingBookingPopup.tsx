@@ -13,7 +13,7 @@ const COUNTDOWN_SECONDS = 30;
 type Props = {
   booking: IncomingBooking;
   onAccept:  (bookingId: string) => Promise<void>;
-  onDecline: (bookingId: string) => void;
+  onDecline: (bookingId: string) => Promise<void>;
   onTimeout: () => void;
 };
 
@@ -105,13 +105,22 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
     setIsActing(true);
     try {
       await onAccept(booking._id);
+    } catch {
+      // Parent shows the actionable error and keeps this offer visible.
     } finally {
       setIsActing(false);
     }
   }, [booking._id, onAccept]);
 
-  const handleDecline = useCallback(() => {
-    onDecline(booking._id);
+  const handleDecline = useCallback(async () => {
+    setIsActing(true);
+    try {
+      await onDecline(booking._id);
+    } catch {
+      // Parent shows the actionable error and keeps this offer visible.
+    } finally {
+      setIsActing(false);
+    }
   }, [booking._id, onDecline]);
 
   const vehicleLabel = booking.vehicleType === 'scooter' ? '🛵 Scooter' : booking.vehicleType === 'cab' ? '🚖 Cab' : null;

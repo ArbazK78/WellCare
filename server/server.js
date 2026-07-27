@@ -8,6 +8,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -35,6 +36,13 @@ app.use(cors({
 }));
 // BM-9 fix: Add a strict 1MB size limit to JSON parsing to prevent DoS via large payloads
 app.use(express.json({ limit: '1mb' }));
+app.use(
+  '/uploads/guide-profiles',
+  express.static(path.join(__dirname, 'uploads', 'guide-profiles'), {
+    fallthrough: false,
+    maxAge: '1d',
+  })
+);
 
 // Mount routes
 const guideRoutes = require('./src/routes/guideRoutes');
@@ -63,6 +71,7 @@ app.use('/api/payments', paymentRoutes);
 
 
 const dispatchService = require('./src/services/dispatchService');
+const scheduledBookingService = require('./src/services/scheduledBookingService');
 
 // BL-4 fix: MongoDB reconnection handling
 mongoose.connection.on('disconnected', () => {
@@ -87,6 +96,21 @@ mongoose.connect(process.env.MONGO_URI, {
         console.error('Error in background offer rotation:', err)
       );
     }, 10000);
+
+    // Release scheduled bookings into the normal guide waterfall 30 minutes
+    // before pickup. A durable database claim prevents duplicate dispatch.
+    const activateScheduledBookings = () => {
+      scheduledBookingService.activateDueBookings().catch((error) =>
+        console.error('Error activating scheduled bookings:', error)
+      );
+    };
+    scheduledBookingService.backfillScheduledBookingTimes()
+      .then((updated) => {
+        if (updated > 0) console.log(`Prepared ${updated} legacy scheduled booking(s)`);
+        activateScheduledBookings();
+      })
+      .catch((error) => console.error('Error preparing scheduled bookings:', error));
+    setInterval(activateScheduledBookings, 30000);
 
     app.listen(PORT, () => {
       console.log(`🚀 Server running at http://localhost:${PORT}`);

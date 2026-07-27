@@ -8,13 +8,13 @@ type AuthContextType = {
   userPhone: string | null;
   userName: string | null;
   userEmail: string | null;
-  user: { _id: string; name: string; email: string; phone?: string; profilePicture?: string; createdAt?: string; safetyPin?: string } | null;
+  user: { _id: string; name: string; email: string; phone?: string; createdAt?: string; safetyPin?: string } | null;
   checkingAuth: boolean;
   login: (phone: string, name?: string, email?: string) => Promise<boolean>;
   updateProfile: (data: { name?: string; email?: string; phone?: string }) => Promise<boolean>;
   logout: () => void;
   register: (name: string, phone: string, email?: string) => Promise<boolean>;
-  setUser: (user: { _id: string; name: string; email: string; phone?: string; profilePicture?: string; createdAt?: string; safetyPin?: string } | null) => void;
+  setUser: (user: { _id: string; name: string; email: string; phone?: string; createdAt?: string; safetyPin?: string } | null) => void;
 };
 
 
@@ -28,7 +28,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   // ✅ Updated type for the full user object to include phone and createdAt
-  const [user, setUserState] = useState<{ _id: string; name: string; email: string; phone?: string; profilePicture?: string; createdAt?: string; safetyPin?: string } | null>(null);
+  const [user, setUserState] = useState<{ _id: string; name: string; email: string; phone?: string; createdAt?: string; safetyPin?: string } | null>(null);
 
   interface JwtPayload {
     userId: string;
@@ -164,7 +164,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // ✅ The setUser function that will be passed in the context
-  const setUser = (newUser: { _id: string; name: string; email: string; phone?: string; profilePicture?: string; createdAt?: string } | null) => {
+  const setUser = (newUser: { _id: string; name: string; email: string; phone?: string; createdAt?: string } | null) => {
     setUserState(newUser);
     setIsAuthenticated(!!newUser);
     if (newUser) {

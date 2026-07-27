@@ -1,9 +1,8 @@
-import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BookingProvider } from "@/contexts/BookingContext";
 import { GuideAuthProvider } from "@/contexts/GuideAuthContext";
@@ -34,30 +33,6 @@ import AdminLogin from "./pages/admin/AdminLogin";
 
 import { useAuth } from "@/contexts/AuthContext";
 
-/**
- * CustomerRouteGuard — wraps all customer-side routes.
- *
- * Conflict rule: if a guide_token exists when a customer page loads,
- * clear it immediately. The customer site has no knowledge of guide auth.
- */
-const CustomerRouteGuard = ({ children }: { children: React.ReactNode }) => {
-  const location = useLocation();
-  const isGuideRoute = location.pathname.startsWith("/guide");
-
-  useEffect(() => {
-    // FC-5 fix: Re-enabled to enforce strict boundary between portals.
-    if (!isGuideRoute) {
-      const guideToken = localStorage.getItem("guide_token");
-      if (guideToken) {
-        localStorage.removeItem("guide_token");
-        localStorage.removeItem("guide_data");
-      }
-    }
-  }, [isGuideRoute]);
-
-  return <>{children}</>;
-};
-
 const AppRoutes = () => {
   const { checkingAuth } = useAuth();
   
@@ -71,7 +46,6 @@ const AppRoutes = () => {
   }
 
   return (
-    <CustomerRouteGuard>
       <Routes>
         {/* ── Customer routes ───────────────────────────────────────────── */}
         <Route path="/" element={<Index />} />
@@ -124,7 +98,6 @@ const AppRoutes = () => {
 
         <Route path="*" element={<NotFound />} />
       </Routes>
-    </CustomerRouteGuard>
   );
 };
 

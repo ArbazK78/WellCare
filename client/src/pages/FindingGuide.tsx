@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 // ── Captions that cycle with a fade ──────────────────────────────────────────
 const CAPTIONS = [
@@ -27,6 +28,7 @@ const FindingGuide = () => {
   const { bookingId } = useParams<{ bookingId: string }>();
   const navigate = useNavigate();
   const { refreshBookings, cancelBooking } = useBookings();
+  const { toast } = useToast();
 
   const [captionIndex, setCaptionIndex] = useState(0);
   const [captionVisible, setCaptionVisible] = useState(true);
@@ -39,6 +41,7 @@ const FindingGuide = () => {
   const captionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const captionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null); // FH-4 fix: Track timeout for unmount cleanup
   const hasPlayedRef    = useRef(false);
+  const hasHandledCancellationRef = useRef(false);
 
   // ── Poll booking status ────────────────────────────────────────────────────
   const pollStatus = useCallback(async () => {
@@ -57,11 +60,21 @@ const FindingGuide = () => {
 
         // Give the success state 1.8s to animate, then go to dashboard
         setTimeout(() => navigate("/dashboard"), 1800);
+      } else if (data?.status === "cancelled" && !hasHandledCancellationRef.current) {
+        hasHandledCancellationRef.current = true;
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        await refreshBookings();
+        toast({
+          title: data.cancelledBy === "system" ? "No guide was available" : "Booking cancelled",
+          description: data.cancelReason || "This booking is no longer active.",
+          variant: data.cancelledBy === "system" ? "destructive" : "default",
+        });
+        navigate("/dashboard", { replace: true });
       }
     } catch (err) {
       // Silent — keep polling
     }
-  }, [bookingId, navigate]);
+  }, [bookingId, navigate, refreshBookings, toast]);
 
   useEffect(() => {
     // Start polling

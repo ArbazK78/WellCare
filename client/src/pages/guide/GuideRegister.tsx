@@ -44,8 +44,14 @@ const formSchema = z.object({
   email: z.string().email({
     message: "Please enter a valid email address.",
   }).optional().or(z.literal("")),
-  // profile_picture: z.instanceof(FileList).refine(files => files ?.length ===1 || !files,),
-  // government_id: z.instanceof(FileList).refine(files => files ?.length === 1 || !files,),
+  profile_picture: z.custom<FileList>(
+    (files) => files instanceof FileList && files.length === 1,
+    { message: 'Please upload one JPEG or PNG profile photo.' }
+  ),
+  government_id: z.custom<FileList>(
+    (files) => files instanceof FileList && files.length === 1,
+    { message: 'Please upload one JPEG, PNG, or PDF government ID.' }
+  ),
   location: z.string().min(2, { message: "Location is required." }),
   experience: z.string().min(1, { message: "Please select your experience level." }), // radio group = string
   specialties: z.array(z.string()).min(1, { message: "Select at least one specialty." }), // multi-select = array
@@ -122,12 +128,12 @@ const GuideRegister = () => {
         data.name,
         data.password,
         data.email || undefined,
-        // data.profile_picture,
-        // data.government_id,
         data.location,
         data.experience,
         data.specialties,
-        data.bio || ""
+        data.bio || "",
+        data.profile_picture,
+        data.government_id
       );
 
       if (result === "success") {
@@ -245,19 +251,16 @@ const GuideRegister = () => {
                       )}
                     />
 
-                    {/* New Fields for Passport sized Image & Government IDs */}
-
-                    {/* <FormField
+                    <FormField
                       control={form.control}
                       name="profile_picture"
-                      render={({ field: {value, onChange, ...field} }) => (
+                      render={({ field: { onChange, onBlur, name, ref } }) => (
                         <FormItem>
-                          <FormLabel className="flex items-center gap-2">
-                              Profile Picture
-                          </FormLabel>
+                          <FormLabel>Profile Picture</FormLabel>
                           <FormControl>
-                          <Input type="file" accept = ".jpeg,.png" onChange={(e) => onChange(e.target.files)} {...field} placeholder="Select your profile image" {...field} />
+                            <Input ref={ref} name={name} onBlur={onBlur} type="file" accept="image/jpeg,image/png" onChange={(event) => onChange(event.target.files)} />
                           </FormControl>
+                          <FormDescription>JPEG or PNG, up to 5 MB.</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -265,19 +268,17 @@ const GuideRegister = () => {
                     <FormField
                       control={form.control}
                       name="government_id"
-                      render={({ field: {value, onChange, ...field} }) => (
+                      render={({ field: { onChange, onBlur, name, ref } }) => (
                         <FormItem>
-                          <FormLabel className="flex items-center gap-2">
-                             Valid ID Proof
-                          </FormLabel>
+                          <FormLabel>Valid Government ID</FormLabel>
                           <FormControl>
-                            <Input type="file" accept = ".pdf, .jpeg, .png" onChange={(e) => onChange(e.target.files)} {...field} placeholder="Please upload your valid ID proof" {...field} />
+                            <Input ref={ref} name={name} onBlur={onBlur} type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => onChange(event.target.files)} />
                           </FormControl>
+                          <FormDescription>PDF, JPEG, or PNG, up to 5 MB. Kept private.</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
-                    /> */}
-
+                    />
                     {/* New 3 fields starts from here  */}
                     <FormField
                       control={form.control}

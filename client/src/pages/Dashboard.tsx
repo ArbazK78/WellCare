@@ -90,7 +90,9 @@ const Dashboard = () => {
   }, [bookings]);
 
   const activeBooking = localBookings.find(
-    (b: any) => ["pending", "accepted", "arrived", "in_progress"].includes(b.status)
+    (b: any) =>
+      ["accepted", "arrived", "in_progress"].includes(b.status) ||
+      (b.status === "pending" && (b.bookingMode !== "schedule" || Boolean(b.dispatchStartedAt)))
   );
 
   useEffect(() => {

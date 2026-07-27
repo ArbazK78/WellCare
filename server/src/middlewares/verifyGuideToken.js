@@ -12,7 +12,7 @@ const verifyGuideToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.role && decoded.role !== 'guide') {
+    if (decoded.role !== 'guide' || !decoded.id) {
       return res.status(403).json({ message: "Forbidden: Invalid token role" });
     }
     req.guide = { id: decoded.id };

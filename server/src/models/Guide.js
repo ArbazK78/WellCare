@@ -7,6 +7,7 @@ const guideSchema = new mongoose.Schema({
   email: { type: String },
   password: { type: String, required: true },
   image: { type: String },
+  governmentIdDocument: { type: String, select: false },
   location: {
     type: String,
   },
@@ -18,6 +19,8 @@ const guideSchema = new mongoose.Schema({
   specialties: {
     type: [String],
   },
+  languages: { type: [String], default: [] },
+  vehicleType: { type: [String], enum: ['scooter', 'cab'], default: [] },
 
   bio: {
     type: String,

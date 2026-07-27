@@ -24,3 +24,6 @@ pids/
 .vscode/
 .idea/
 .DS_Store
+
+# Runtime guide uploads
+uploads/

@@ -3,6 +3,13 @@
 const Booking = require('../models/Booking');
 const Guide = require('../models/Guide');
 const dispatchService = require('../services/dispatchService');
+const scheduledBookingService = require('../services/scheduledBookingService');
+const {
+  ACTIVE_ASSIGNED_STATUSES,
+  canAssignedGuideTransition,
+  getCustomerCancellationResult,
+  isAssignedGuide,
+} = require('../services/bookingStateMachine');
 
 // Helper: generate a unique human-readable booking reference ID
 const crypto = require('crypto');
@@ -30,20 +37,36 @@ exports.createBooking = async (req, res) => {
 
     console.log("📥 Received booking payload:", req.body);
 
-    // ALPHA: All approved guides are eligible for every booking.
-    // Specialty-based filtering was silently excluding guides whose profile
-    // specialties didn't exactly match the booked service string.
-    // TODO (post-Alpha): Re-introduce specialty + vehicleType matching once
-    // guide profiles are standardised and tested end-to-end.
-    const allApproved = await Guide.find({ status: 'approved', isOnline: true }).select('_id');
-    const eligibleGuideIds = allApproved.map(g => g._id);
-
-    if (eligibleGuideIds.length === 0) {
-      return res.status(400).json({ message: 'No approved guides available at the moment. Please try again later.' });
+    const normalizedMode = bookingMode === 'schedule' ? 'schedule' : 'now';
+    const requiredValues = { name, date, time, pickupLocation, destinationAddress, vehicleType };
+    const missingField = Object.entries(requiredValues).find(([, value]) => !value);
+    if (missingField) {
+      return res.status(400).json({ message: `${missingField[0]} is required` });
     }
 
-    console.log(`📋 Booking request → ${eligibleGuideIds.length} eligible guide(s)`);
+    let scheduledAt = null;
+    let dispatchAt = null;
+    if (normalizedMode === 'schedule') {
+      scheduledAt = scheduledBookingService.parseScheduledDateTime(date, time);
+      if (!scheduledAt) {
+        return res.status(400).json({ message: 'Scheduled date and time are invalid' });
+      }
+      if (scheduledAt <= new Date()) {
+        return res.status(400).json({ message: 'Scheduled pickup must be in the future' });
+      }
+      dispatchAt = scheduledBookingService.getDispatchAt(scheduledAt);
+    }
 
+    // Matching remains intentionally broad until guide capabilities are
+    // standardised. Scheduled bookings are matched at release time.
+    let eligibleGuideIds = [];
+    if (normalizedMode === 'now') {
+      const allApproved = await Guide.find({ status: 'approved', isOnline: true }).select('_id');
+      eligibleGuideIds = allApproved.map((guide) => guide._id);
+      if (eligibleGuideIds.length === 0) {
+        return res.status(400).json({ message: 'No approved guides available at the moment. Please try again later.' });
+      }
+    }
     const bookingRefId = generateBookingRefId();
     // BM-6 fix: Replaced non-deterministic Math.random() to prevent fare gaming.
     // Fare is now deterministically calculated based on vehicle type and location string lengths.
@@ -57,7 +80,9 @@ exports.createBooking = async (req, res) => {
       pickupLocation,
       destinationAddress,
       dropBack: dropBack || false,
-      bookingMode: bookingMode || 'now',
+      bookingMode: normalizedMode,
+      scheduledAt,
+      dispatchAt,
       metadata: metadata || {},
       eligibleGuides: eligibleGuideIds,
       customer: req.userId,
@@ -71,14 +96,28 @@ exports.createBooking = async (req, res) => {
 
     const savedBooking = await newBooking.save();
     
-    // Only start immediate waterfall dispatch if booking is for 'now'
-    if (savedBooking.bookingMode === 'now') {
-      await dispatchService.initiateDispatch(savedBooking._id, eligibleGuideIds);
-      console.log(`✅ Booking ${savedBooking._id} created and dispatched — vehicleType: ${vehicleType}`);
+    // Immediate requests and scheduled requests already inside the lead window
+    // enter the same waterfall now. Future requests are handled by the scheduler.
+    if (savedBooking.bookingMode === 'now' || savedBooking.dispatchAt <= new Date()) {
+      if (savedBooking.bookingMode === 'schedule') {
+        savedBooking.dispatchStartedAt = new Date();
+        await savedBooking.save();
+      }
+      if (eligibleGuideIds.length === 0) {
+        const guides = await Guide.find({ status: 'approved', isOnline: true }).select('_id');
+        eligibleGuideIds = guides.map((guide) => guide._id);
+      }
+      if (eligibleGuideIds.length > 0) {
+        await dispatchService.initiateDispatch(savedBooking._id, eligibleGuideIds);
+        console.log(`Booking ${savedBooking._id} created and dispatched`);
+      } else {
+        savedBooking.dispatchStartedAt = null;
+        await savedBooking.save();
+        console.log(`Scheduled booking ${savedBooking._id} is waiting for guide availability`);
+      }
     } else {
-      console.log(`✅ Scheduled Booking ${savedBooking._id} created (no instant dispatch).`);
+      console.log(`Scheduled booking ${savedBooking._id} will dispatch at ${savedBooking.dispatchAt.toISOString()}`);
     }
-
     res.status(201).json(savedBooking);
   } catch (error) {
     console.error('❌ Booking creation failed:', error);
@@ -109,7 +148,11 @@ exports.checkActiveBooking = async (req, res) => {
   try {
     const activeBookings = await Booking.find({
       customer: req.userId,
-      status: { $in: ['pending', 'accepted', 'arrived', 'in_progress'] },
+      $or: [
+        { status: { $in: ['accepted', 'arrived', 'in_progress'] } },
+        { status: 'pending', bookingMode: 'now' },
+        { status: 'pending', bookingMode: 'schedule', dispatchStartedAt: { $ne: null } },
+      ],
     });
 
     res.json({ activeBookings });
@@ -138,6 +181,19 @@ exports.cancelBooking = async (req, res) => {
       return res.status(403).json({ message: 'Forbidden: You do not own this booking' });
     }
 
+    const cancellationResult = getCustomerCancellationResult(booking.status);
+
+    if (cancellationResult === 'already_cancelled') {
+      return res.status(200).json({
+        message: 'Booking was already cancelled',
+        booking,
+      });
+    }
+
+    if (cancellationResult === 'blocked') {
+      return res.status(409).json({ message: 'This booking can no longer be cancelled' });
+    }
+
     booking.status = 'cancelled';
     booking.cancelReason = reason || 'No reason provided';
     booking.cancelledBy = 'customer';
@@ -149,18 +205,6 @@ exports.cancelBooking = async (req, res) => {
     console.error('❌ Error cancelling booking:', error);
     res.status(500).json({ message: 'Server error while cancelling booking' });
   }
-};
-
-// ---------------------------------------------------------------------------
-// PAY BOOKING (mark payment as completed)
-// ---------------------------------------------------------------------------
-// BC-4 / BC-8 fix: This legacy direct-pay endpoint is DISABLED.
-// All payments must go through Razorpay via POST /api/payments/create-order
-// and POST /api/payments/verify. Direct payment marking is not allowed.
-exports.payBooking = async (req, res) => {
-  return res.status(410).json({
-    message: 'Direct payment is no longer supported. Please use the Razorpay payment flow.',
-  });
 };
 
 // ---------------------------------------------------------------------------
@@ -189,30 +233,6 @@ exports.getGuideRecentCancellations = async (req, res) => {
 };
 
 // ---------------------------------------------------------------------------
-// GET BOOKING STATUS (polled by user's confirmation page)
-// ---------------------------------------------------------------------------
-exports.getBookingStatus = async (req, res) => {
-  try {
-    const booking = await Booking.findById(req.params.bookingId)
-      .populate('guide', 'name image rating');
-
-    if (!booking) {
-      return res.status(404).json({ message: 'Booking not found' });
-    }
-
-    // BC-6 fix: Only the customer who owns this booking can poll its status
-    if (!booking.customer || booking.customer.toString() !== req.userId) {
-      return res.status(403).json({ message: 'Forbidden: You do not own this booking' });
-    }
-
-    res.json({ status: booking.status, guide: booking.guide });
-  } catch (error) {
-    console.error('❌ Error fetching booking status:', error);
-    res.status(500).json({ message: 'Error fetching booking status' });
-  }
-};
-
-// ---------------------------------------------------------------------------
 // START TRIP (Verify Safety PIN)
 // ---------------------------------------------------------------------------
 exports.startTrip = async (req, res) => {
@@ -225,11 +245,15 @@ exports.startTrip = async (req, res) => {
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
     
     // Ensure only the assigned guide can start the trip
-    if (booking.guide.toString() !== guideId) {
+    if (!isAssignedGuide(booking, guideId)) {
       return res.status(403).json({ message: 'Not authorized for this booking' });
     }
 
-    if (String(booking.customer.safetyPin).trim() !== String(pin).trim()) {
+    if (booking.status !== 'arrived') {
+      return res.status(409).json({ message: 'The guide must mark arrival before starting the trip' });
+    }
+
+    if (!pin || String(booking.customer.safetyPin).trim() !== String(pin).trim()) {
       // BC-10 fix: Never log the actual PIN value
       console.log(`❌ PIN mismatch for booking ${bookingId}`);
       return res.status(400).json({ message: 'Invalid Safety PIN' });
@@ -268,90 +292,97 @@ exports.updateBookingStatus = async (req, res) => {
   try {
     const { bookingId } = req.params;
     const { status } = req.body;
-    const guideId = req.guide?.id;
+    const guideId = req.guide.id;
 
-    // --- ACCEPT ---
-    if (status === 'accepted' && guideId) {
-      // Atomic check-and-set: only succeeds if booking is still pending
+    if (status === 'accepted') {
       const booking = await Booking.findOneAndUpdate(
-        { _id: bookingId, status: 'pending' }, // guard — prevents double acceptance
         {
-          status: 'accepted',
-          guide: guideId,
-          // eligibleGuides: [], // keep legacy queue for re-dispatch if cancelled
-          guideQueue: [],     // clear waterfall queue
-          currentOfferedGuide: null,
-          offerExpiresAt: null,
+          _id: bookingId,
+          status: 'pending',
+          currentOfferedGuide: guideId,
+          offerExpiresAt: { $gt: new Date() },
         },
-        { new: true }
+        {
+          $set: {
+            status: 'accepted',
+            guide: guideId,
+            guideQueue: [],
+            currentOfferedGuide: null,
+            offerExpiresAt: null,
+          },
+        },
+        { new: true, runValidators: true }
       )
         .populate('customer', 'name phone email')
         .populate('guide', 'name image rating phone');
 
       if (!booking) {
-        // Either not found, or another guide already accepted it
-        return res.status(409).json({
-          message: 'Booking is no longer available — it may have already been accepted by another guide.',
-        });
+        return res.status(409).json({ message: 'This offer is no longer available to you.' });
       }
-
       return res.json({ message: 'Booking accepted successfully', booking });
     }
 
-    // --- REJECT (guide passes on booking) ---
-    if (status === 'rejected' && guideId) {
-      // Force rotation to the next guide instantly!
-      await dispatchService.rotateToNextGuide(bookingId);
-      
-      const updatedBooking = await Booking.findById(bookingId);
+    if (status === 'rejected') {
+      const booking = await Booking.findOne({
+        _id: bookingId,
+        status: 'pending',
+        currentOfferedGuide: guideId,
+      });
+      if (!booking) {
+        return res.status(409).json({ message: 'This offer is no longer available to you.' });
+      }
 
-      return res.json({ message: 'Booking passed — removed from your queue', booking: updatedBooking });
+      await dispatchService.rotateToNextGuide(bookingId, guideId);
+      return res.json({
+        message: 'Booking passed to the next available guide',
+        booking: await Booking.findById(bookingId),
+      });
     }
 
-    // --- GUIDE CANCEL (guide cancels AFTER accepting) ---
-    if (status === 'guide_cancelled' && guideId) {
-      const booking = await Booking.findById(bookingId);
-      if (!booking) return res.status(404).json({ message: 'Booking not found' });
-      
-      // BH-8 fix: Removed redundant Guide require inside hot function
-      const onlineGuides = await Guide.find({ status: 'approved', isOnline: true });
-      const onlineGuideIds = onlineGuides.map(g => g._id.toString()).filter(id => id !== guideId);
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    if (!isAssignedGuide(booking, guideId)) {
+      return res.status(403).json({ message: 'You are not assigned to this booking' });
+    }
+
+    if (status === 'guide_cancelled') {
+      if (!ACTIVE_ASSIGNED_STATUSES.has(booking.status)) {
+        return res.status(409).json({ message: 'This booking can no longer be cancelled by a guide' });
+      }
+
+      const guides = await Guide.find({ status: 'approved', isOnline: true }).select('_id');
+      const eligibleGuideIds = guides
+        .map((guide) => guide._id)
+        .filter((id) => id.toString() !== guideId);
 
       booking.status = 'pending';
-      booking.guide = null; 
+      booking.guide = null;
+      booking.currentOfferedGuide = null;
+      booking.offerExpiresAt = null;
       booking.cancelReason = req.body.reason || 'Guide cancelled';
       await booking.save();
-
-      await dispatchService.initiateDispatch(bookingId, onlineGuideIds);
-
-      return res.json({ message: 'Booking cancelled and passed to queue', booking });
+      await dispatchService.initiateDispatch(bookingId, eligibleGuideIds);
+      return res.json({ message: 'Booking returned to the guide queue', booking });
     }
 
-    // --- COMPLETE / ARRIVED ---
-    const updateData = { status };
-    if (status === 'completed') {
-      updateData.completedAt = new Date();
+    if (!canAssignedGuideTransition(booking.status, status)) {
+      return res.status(409).json({
+        message: `Cannot move booking from ${booking.status} to ${status}`,
+      });
     }
 
-    const booking = await Booking.findByIdAndUpdate(
-      bookingId,
-      updateData,
-      { new: true }
-    )
-      .populate('customer', 'name phone email')
-      .populate('guide', 'name image rating phone');
+    booking.status = status;
+    if (status === 'completed') booking.completedAt = new Date();
+    await booking.save();
+    await booking.populate('customer', 'name phone email');
+    await booking.populate('guide', 'name image rating phone');
 
-    if (!booking) {
-      return res.status(404).json({ message: 'Booking not found' });
-    }
-
-    res.json({ message: 'Booking status updated successfully', booking });
+    return res.json({ message: 'Booking status updated successfully', booking });
   } catch (error) {
-    console.error('❌ Error updating booking status:', error);
-    res.status(500).json({ message: 'Error updating booking status' });
+    console.error('Booking status update failed:', error);
+    return res.status(500).json({ message: 'Error updating booking status' });
   }
 };
-
 // ---------------------------------------------------------------------------
 // GET GUIDE'S PENDING BOOKINGS
 // Uses Waterfall Dispatch — queries for bookings currently offered to this guide
@@ -424,27 +455,6 @@ exports.getGuideCompletedBookings = async (req, res) => {
     console.error('❌ Error fetching guide completed bookings:', error);
     res.status(500).json({ message: 'Error fetching completed bookings' });
   }
-};
-
-// ---------------------------------------------------------------------------
-// LEGACY: acceptBooking — BC-7 fix: DISABLED. Was using user token on a guide
-// action with no guide ownership check. Use PUT /:id/status with guide token.
-// ---------------------------------------------------------------------------
-exports.acceptBooking = async (req, res) => {
-  return res.status(410).json({
-    message: 'This endpoint is deprecated. Use PUT /api/bookings/:id/status with a guide token.',
-  });
-};
-
-// ---------------------------------------------------------------------------
-// LEGACY: getPendingBookings — BC-8 fix: DISABLED. Exposed all system bookings
-// to any authenticated user. Guide-specific pending bookings are at
-// GET /api/bookings/guide/pending (protected by verifyGuideToken).
-// ---------------------------------------------------------------------------
-exports.getPendingBookings = async (req, res) => {
-  return res.status(410).json({
-    message: 'This endpoint is deprecated. Guides should use GET /api/bookings/guide/pending.',
-  });
 };
 
 // ---------------------------------------------------------------------------

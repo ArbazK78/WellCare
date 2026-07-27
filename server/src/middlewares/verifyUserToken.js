@@ -12,7 +12,7 @@ const verifyUserToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (decoded.role && decoded.role !== 'customer') {
+    if (decoded.role !== 'customer' || !decoded.userId) {
       return res.status(403).json({ message: "Forbidden: Invalid token role" });
     }
     req.userId = decoded.userId; // ✅ For use in controller

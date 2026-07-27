@@ -5,7 +5,21 @@ const jwt = require('jsonwebtoken');
 
 exports.registerGuide = async (req, res) => {
   try {
-    const { name, phone, password, email, location, experience, specialties, bio } = req.body;
+    const { name, phone, password, email, location, experience, bio } = req.body;
+    if (!name || !phone || !password) {
+      return res.status(400).json({ message: 'Name, phone, and password are required' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
+
+    const rawSpecialties = req.body.specialties || req.body['specialties[]'] || [];
+    const specialties = Array.isArray(rawSpecialties) ? rawSpecialties : [rawSpecialties];
+    const profilePhoto = req.files?.profile_picture?.[0];
+    const governmentId = req.files?.government_id?.[0];
+    if (!profilePhoto || !governmentId) {
+      return res.status(400).json({ message: 'Profile photo and government ID are required' });
+    }
 
     const existingGuide = await Guide.findOne({ phone });
     if (existingGuide) {
@@ -22,6 +36,10 @@ exports.registerGuide = async (req, res) => {
       experience,
       specialties,
       bio,
+      image: profilePhoto
+        ? req.protocol + '://' + req.get('host') + '/uploads/guide-profiles/' + profilePhoto.filename
+        : undefined,
+      governmentIdDocument: governmentId?.path,
     });
 
     await newGuide.save();
@@ -102,23 +120,6 @@ exports.loginGuide = async (req, res) => {
 
   } catch (error) {
     console.error("Guide login error:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-// BC-12 fix: add .select('-password') and auth check
-exports.getRandomGuide = async (req, res) => {
-  try {
-    const guides = await Guide.find({ status: "approved" }).select('-password');
-
-    if (!guides || guides.length === 0) {
-      return res.status(404).json({ message: "No approved guides found." });
-    }
-
-    const randomIndex = Math.floor(Math.random() * guides.length);
-    res.json(guides[randomIndex]);
-  } catch (error) {
-    console.error("Error fetching random guide:", error);
     res.status(500).json({ message: "Server error" });
   }
 };

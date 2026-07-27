@@ -5,10 +5,7 @@ const bookingController = require("../controllers/bookingController");
 const verifyUserToken = require("../middlewares/verifyUserToken"); // Assuming this exists
 const verifyGuideToken = require("../middlewares/verifyGuideToken"); // Guide token verification
 const {
-  getBookingStatus,
   getBookingById,
-  acceptBooking,
-  getPendingBookings,
   getGuidePendingBookings,
   getGuideAcceptedBookings,
   getGuideCompletedBookings,
@@ -43,11 +40,7 @@ router.get('/guide/recent-cancellations', verifyGuideToken, getGuideRecentCancel
 // PUT /api/bookings/:bookingId/cancel - Cancel a specific booking
 router.put("/:bookingId/cancel", verifyUserToken, bookingController.cancelBooking); // 👈 Soft delete
 
-// PUT /api/bookings/:bookingId/pay - Pay a booking (User)
-router.put("/:bookingId/pay", verifyUserToken, bookingController.payBooking);
 
-// PUT /api/bookings/:bookingId/guide-pay - Pay a booking (Guide cash collection)
-router.put("/:bookingId/guide-pay", verifyGuideToken, bookingController.payBooking);
 
 // PUT /api/bookings/:bookingId/status - Update booking status (accept/reject/complete)
 router.put('/:bookingId/status', verifyGuideToken, updateBookingStatus);
@@ -55,12 +48,6 @@ router.put('/:bookingId/status', verifyGuideToken, updateBookingStatus);
 // POST /api/bookings/:bookingId/start-trip - Start trip with OTP
 router.post("/:bookingId/start-trip", verifyGuideToken, pinAttemptLimiter, bookingController.startTrip); // ✅ Status update endpoint
 
-router.get('/:bookingId/status', verifyUserToken, getBookingStatus);
 router.get('/:bookingId', verifyUserToken, getBookingById); // Full booking fetch for confirmation page
-router.post('/:bookingId/accept', verifyUserToken, acceptBooking);
-router.get('/pending', verifyUserToken, getPendingBookings);
-router.get('/debug-token', verifyUserToken, (req, res) => {
-  res.json({ message: 'Token is valid!', userId: req.userId });
-});
 
 module.exports = router;

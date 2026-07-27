@@ -1,12 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { useState } from "react";
 import { User, Mail, Phone, Send, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import PhoneVerificationForm from "./PhoneVerificationForm";
-import axios from "axios";
 import api from "@/lib/api"; // 👈 Add this at top if not present
 
 
@@ -24,13 +22,6 @@ const RegisterForm = () => {
 
   const { toast } = useToast(); // ✅ Always stays above any return or conditionals
 
-  // ✅ All functions come below the hooks
-  const handleGoogleSignIn = () => {
-    toast({
-      title: "Google Sign Up",
-      description: "This is a dummy implementation. Please connect Supabase for actual Google authentication.",
-    });
-  };
 
   const checkUserExists = async (phone: string, email: string) => {
     try {
@@ -55,16 +46,6 @@ const RegisterForm = () => {
     }
   };
 
-  const proceedToOtp = async () => {
-    const isUnique = await checkUserExists(formData.phone, formData.email);
-    if (!isUnique) return;
-
-    setVerificationStep("otp");
-    toast({
-      title: "Verification code sent",
-      description: `A 6-digit code has been sent to ${formData.phone}`,
-    });
-  };
 
   const handleSendOtp = async () => {
     if (!formData.phone || formData.phone.length < 10) {
@@ -194,27 +175,6 @@ const RegisterForm = () => {
         )}
       </Button>
 
-      <div className="relative my-4">
-        <div className="absolute inset-0 flex items-center">
-          <Separator />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">
-            Or continue with Google
-          </span>
-        </div>
-      </div>
-
-      <Button
-        variant="outline"
-        className="w-full"
-        onClick={handleGoogleSignIn}
-      >
-        <div className="mr-2 h-4 w-4 flex items-center justify-center">
-          <span className="font-bold text-red-500">G</span>
-        </div>
-        Sign up with Google
-      </Button>
     </div>
   );
 };

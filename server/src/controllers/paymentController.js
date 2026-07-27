@@ -1,6 +1,6 @@
 const Razorpay = require('razorpay');
-const crypto = require('crypto');
 const Booking = require('../models/Booking');
+const { isOrderBoundToBooking, isValidPaymentSignature } = require('../services/paymentVerification');
 
 // Initialize Razorpay instance
 const getRazorpayInstance = () => {
@@ -29,6 +29,10 @@ exports.createOrder = async (req, res) => {
     // BC-5 fix: Only the customer who owns this booking can initiate payment
     if (!booking.customer || booking.customer.toString() !== req.userId) {
       return res.status(403).json({ message: 'Forbidden: You do not own this booking' });
+    }
+
+    if (booking.status !== 'completed') {
+      return res.status(409).json({ message: 'Payment is available only after the booking is completed' });
     }
 
     if (booking.paymentStatus === 'paid') {
@@ -85,14 +89,24 @@ exports.verifyPayment = async (req, res) => {
       return res.status(403).json({ message: 'Forbidden: You do not own this booking' });
     }
 
-    // Verify signature using crypto
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(body.toString())
-      .digest('hex');
+    if (booking.status !== 'completed') {
+      return res.status(409).json({ message: 'Payment is available only after the booking is completed' });
+    }
 
-    const isAuthentic = expectedSignature === razorpay_signature;
+    if (booking.paymentStatus === 'paid') {
+      return res.status(409).json({ message: 'Booking is already paid' });
+    }
+
+    if (!isOrderBoundToBooking(booking, razorpay_order_id)) {
+      return res.status(400).json({ message: 'Payment order does not belong to this booking' });
+    }
+
+    const isAuthentic = isValidPaymentSignature({
+      orderId: razorpay_order_id,
+      paymentId: razorpay_payment_id,
+      signature: razorpay_signature,
+      secret: process.env.RAZORPAY_KEY_SECRET,
+    });
 
     if (isAuthentic) {
       // Payment verified!

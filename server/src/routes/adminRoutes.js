@@ -83,7 +83,7 @@ router.put('/guides/:id/status', verifyAdminToken, async (req, res) => {
     const updatedGuide = await Guide.findByIdAndUpdate(
       id,
       { status },
-      { new: true }
+      { new: true, runValidators: true }
     ).select('-password');
 
     if (!updatedGuide) {

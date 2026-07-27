@@ -7,8 +7,6 @@ const userSchema = new mongoose.Schema({
   phone: { type: String, required: true, unique: true },
   email: { type: String },
   password: { type: String },
-  googleId: { type: String, unique: true, sparse: true }, // For Google Sign-in
-  profilePicture: { type: String }, // Optional profile picture from Google
   savedAddresses: {
     home: { type: String },
     work: { type: String }

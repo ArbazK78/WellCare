@@ -21,6 +21,7 @@ exports.initiateDispatch = async (bookingId, matchedGuideIds) => {
       booking.status = 'cancelled';
       booking.cancelReason = 'No eligible guides found';
       booking.cancelledBy = 'system';
+    booking.cancelledAt = new Date();
       await booking.save();
     }
     return;
@@ -46,29 +47,56 @@ exports.initiateDispatch = async (bookingId, matchedGuideIds) => {
 /**
  * Force rotates a booking to the next guide in the queue (e.g. when rejected).
  */
-exports.rotateToNextGuide = async (bookingId) => {
+exports.rotateToNextGuide = async (bookingId, expectedGuideId = null) => {
   const booking = await Booking.findById(bookingId);
-  // If the booking is already accepted or cancelled, do nothing.
-  if (!booking || booking.status !== 'pending') return;
+  if (!booking || booking.status !== 'pending') return false;
 
-  if (booking.guideQueue && booking.guideQueue.length > 0) {
-    const nextGuide = booking.guideQueue.shift();
-    booking.currentOfferedGuide = nextGuide;
-    booking.offerExpiresAt = new Date(Date.now() + OFFER_DURATION_MS);
-    await booking.save();
-    console.log(`🔄 Booking ${booking.bookingRefId} rotated to guide: ${nextGuide}`);
-  } else {
-    // Queue is empty, auto-cancel
-    booking.currentOfferedGuide = null;
-    booking.offerExpiresAt = null;
-    booking.status = 'cancelled';
-    booking.cancelReason = 'All matched guides rejected or timed out';
-    booking.cancelledBy = 'system';
-    await booking.save();
-    console.log(`❌ Booking ${booking.bookingRefId} auto-cancelled. No guides left in queue.`);
+  const currentGuideId = booking.currentOfferedGuide?.toString();
+  if (expectedGuideId && currentGuideId !== expectedGuideId.toString()) return false;
+
+  const remainingQueue = [...(booking.guideQueue || [])];
+  const nextGuide = remainingQueue.shift();
+  const filter = {
+    _id: bookingId,
+    status: 'pending',
+    currentOfferedGuide: booking.currentOfferedGuide,
+  };
+
+  if (nextGuide) {
+    const rotated = await Booking.findOneAndUpdate(
+      filter,
+      {
+        $set: {
+          guideQueue: remainingQueue,
+          currentOfferedGuide: nextGuide,
+          offerExpiresAt: new Date(Date.now() + OFFER_DURATION_MS),
+        },
+      },
+      { new: true, runValidators: true }
+    );
+    if (!rotated) return false;
+    console.log(`Booking ${booking.bookingRefId} rotated to guide ${nextGuide}`);
+    return true;
   }
-};
 
+  const cancelled = await Booking.findOneAndUpdate(
+    filter,
+    {
+      $set: {
+        currentOfferedGuide: null,
+        offerExpiresAt: null,
+        status: 'cancelled',
+        cancelReason: 'All matched guides rejected or timed out',
+        cancelledBy: 'system',
+        cancelledAt: new Date(),
+      },
+    },
+    { new: true, runValidators: true }
+  );
+  if (!cancelled) return false;
+  console.log(`Booking ${booking.bookingRefId} auto-cancelled: no guides remain`);
+  return true;
+};
 /**
  * Finds all pending bookings with an expired offer and rotates them.
  * This is called automatically when any guide polls for bookings.
@@ -82,7 +110,7 @@ exports.autoRotateExpiredOffers = async () => {
 
     for (const booking of expiredBookings) {
       console.log(`⏰ Offer expired for Booking ${booking.bookingRefId}. Rotating...`);
-      await exports.rotateToNextGuide(booking._id);
+      await exports.rotateToNextGuide(booking._id, booking.currentOfferedGuide);
     }
   } catch (err) {
     console.error('Error auto-rotating expired offers:', err);

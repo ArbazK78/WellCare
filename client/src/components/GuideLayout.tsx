@@ -17,6 +17,7 @@ import IncomingBookingPopup from "@/components/IncomingBookingPopup";
 import CancelledBookingPopup from "@/components/CancelledBookingPopup";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
+import axios from "axios";
 
 /**
  * GuideLayout — standalone layout for all /guide/* pages.
@@ -54,11 +55,14 @@ const GuideLayout = ({ children }: { children: React.ReactNode }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       dismissIncoming();
-      toast({ title: "Booking Accepted ✅", description: "You've accepted the booking. Head to your dashboard." });
-      // Pass a refresh timestamp so GuideDashboard re-fetches immediately
+      toast({ title: "Booking Accepted", description: "You've accepted the booking. Head to your dashboard." });
       navigate("/guide/dashboard", { state: { refresh: Date.now() } });
     } catch (err) {
-      toast({ title: "Failed to accept", description: "Please try again.", variant: "destructive" });
+      const description = axios.isAxiosError(err)
+        ? err.response?.data?.message || "Please try again."
+        : "Please try again.";
+      toast({ title: "Failed to accept", description, variant: "destructive" });
+      throw err;
     }
   }, [dismissIncoming, navigate, toast]);
 
@@ -72,12 +76,15 @@ const GuideLayout = ({ children }: { children: React.ReactNode }) => {
         { status: "rejected" },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-    } catch {
-      // Silent fail — the booking stays pending for other guides
-    } finally {
       dismissIncoming();
+    } catch (err) {
+      const description = axios.isAxiosError(err)
+        ? err.response?.data?.message || "Please try again."
+        : "Please try again.";
+      toast({ title: "Failed to decline", description, variant: "destructive" });
+      throw err;
     }
-  }, [dismissIncoming]);
+  }, [dismissIncoming, toast]);
 
   // ── Refresh Dashboard when a cancellation is received ─────────────────────
   // FH-6 fix: Removed immediate navigation on `cancelledBooking` so the guide

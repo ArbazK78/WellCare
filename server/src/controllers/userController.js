@@ -7,6 +7,9 @@ const bcrypt = require('bcrypt');
 exports.register = async (req, res) => {
   try {
     const { name, phone, email, password } = req.body;
+    if (!name || !phone) {
+      return res.status(400).json({ message: 'Name and phone are required' });
+    }
     
     // Check if user already exists
     let user = await User.findOne({ phone });
@@ -50,6 +53,7 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { phone } = req.body;
+    if (!phone) return res.status(400).json({ message: 'Phone is required' });
 
     const user = await User.findOne({ phone });
 
@@ -108,7 +112,7 @@ exports.updateProfile = async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.userId,
       { $set: userFields },
-      { new: true }
+      { new: true, runValidators: true }
     ).select('-password');
     
     res.json(user);
@@ -124,7 +128,7 @@ exports.checkUserExists = async (req, res) => {
 
   try {
     const phoneExists = await User.findOne({ phone });
-    const emailExists = await User.findOne({ email });
+    const emailExists = email ? await User.findOne({ email }) : null;
 
     if (phoneExists) {
       errors.push({ field: "phone", message: "Phone number already registered" });

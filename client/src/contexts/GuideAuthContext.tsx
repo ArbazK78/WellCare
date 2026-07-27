@@ -85,16 +85,16 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
   const guideLogin = async (phone: string, password: string) => {
     try {
       const { data } = await api.post('/guides/login', { phone, password });
-      
+
       // Store token and user data
       localStorage.setItem('guide_token', data.token);
       localStorage.setItem('guide_data', JSON.stringify(data.guide));
-      
+
       // Update state
       setIsAuthenticated(true);
       setCurrentGuide(data.guide);
       setIsOnline(data.guide.isOnline ?? false); // FH-3 fix: Restore online status from login response
-      
+
       return "success";
     } catch (error) {
       return "invalid";
@@ -119,17 +119,17 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
       formData.append("name", name);
       formData.append("phone", phone);
       formData.append("password", password);
-      
+
       if (email) formData.append("email", email);
       if (location) formData.append("location", location);
       if (experience) formData.append("experience", experience);
       if (bio) formData.append("bio", bio);
-      
+
       // Send array items individually
       if (specialties && specialties.length > 0) {
         specialties.forEach(spec => formData.append("specialties[]", spec));
       }
-      
+
       // Append files correctly
       if (profile_picture && profile_picture.length > 0) {
         formData.append("profile_picture", profile_picture[0]);
@@ -158,7 +158,7 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
   const getAllApprovedGuides = async (): Promise<Guide[]> => {
     try {
       // FM-1 fix: Pass status=approved to backend so we don't fetch pending/rejected guides
-      const { data } = await api.get('/guides/all?status=approved'); 
+      const { data } = await api.get('/guides/approved');
       return data;
     } catch (error) {
       console.error("Error fetching approved guides:", error);
@@ -190,7 +190,7 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
       const { data } = await api.put('/guides/online-status', { isOnline: next });
       setIsOnline(data.isOnline);
       console.log(`📡 Guide is now ${data.isOnline ? 'ONLINE 🟢' : 'OFFLINE 🔴'}`);
-      
+
       if (data.isOnline) {
         toast({
           title: "You are online now!",
@@ -207,10 +207,10 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
       const token = localStorage.getItem("guide_token");
       console.log("🔥 Sending update request", updatedData);
 
-      
+
       // Always use axios instance with interceptors
       const { data } = await api.put("/guides/update-profile", updatedData);
-      
+
       setCurrentGuide(data.updatedGuide);
       console.log("✅ Guide profile updated successfully");
       return data.updatedGuide; // Return updated data for immediate UI updates

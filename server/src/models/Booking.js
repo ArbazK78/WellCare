@@ -14,6 +14,12 @@ const BookingSchema = new mongoose.Schema({
     default: 'now',
   },
 
+  // Canonical pickup and dispatch timestamps for scheduled bookings.
+  // dispatchStartedAt also acts as a durable scheduler claim/lock.
+  scheduledAt: { type: Date, default: null },
+  dispatchAt: { type: Date, default: null },
+  dispatchStartedAt: { type: Date, default: null },
+
   // Free-form metadata for future use (e.g. visitReason)
   metadata: {
     type: mongoose.Schema.Types.Mixed,
@@ -79,7 +85,7 @@ const BookingSchema = new mongoose.Schema({
     ref: 'Guide',
     default: null,
   },
-  // When the 15-second window closes for the current guide
+  // When the 30-second window closes for the current guide
   offerExpiresAt: {
     type: Date,
     default: null,
@@ -132,5 +138,10 @@ const BookingSchema = new mongoose.Schema({
     default: 'pending',
   },
 });
+
+BookingSchema.index(
+  { bookingMode: 1, status: 1, dispatchStartedAt: 1, dispatchAt: 1 },
+  { name: 'scheduled_booking_activation' }
+);
 
 module.exports = mongoose.model('Booking', BookingSchema);
