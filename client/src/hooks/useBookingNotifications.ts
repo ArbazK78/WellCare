@@ -11,6 +11,9 @@ export type IncomingBooking = {
   vehicleType?: 'scooter' | 'cab';
   dropBack?: boolean;
   waitingHours?: number;
+  distanceKm?: number;
+  durationMin?: number;
+  totalFare?: number;
   customer?: {
     name?: string;
     phone?: string;

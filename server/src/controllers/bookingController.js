@@ -4,6 +4,7 @@ const Booking = require('../models/Booking');
 const Guide = require('../models/Guide');
 const dispatchService = require('../services/dispatchService');
 const scheduledBookingService = require('../services/scheduledBookingService');
+const fareCalculationService = require('../services/fareCalculationService');
 const {
   ACTIVE_ASSIGNED_STATUSES,
   canAssignedGuideTransition,
@@ -68,15 +69,21 @@ exports.createBooking = async (req, res) => {
       }
     }
     const bookingRefId = generateBookingRefId();
-    // BM-6 fix: Replaced non-deterministic Math.random() to prevent fare gaming.
-    // Fare is now deterministically calculated based on vehicle type and location string lengths.
-    const baseFare = vehicleType === 'cab' ? 150 : 50;
-    const distanceProxy = (pickupLocation?.length || 0) + (destinationAddress?.length || 0);
-    const calculatedFare = baseFare + (distanceProxy * 2);
+    // Recalculate on the trusted server at booking creation. The customer-facing
+    // estimate is informational and is never accepted as the payable amount.
+    const fare = await fareCalculationService.calculateFare({
+      pickupLocation,
+      destinationAddress,
+      vehicleType,
+      dropBack,
+    });
 
     const newBooking = new Booking({
       vehicleType,
-      totalFare: calculatedFare,
+      totalFare: fare.totalFare,
+      distanceKm: fare.distanceKm,
+      durationMin: fare.durationMin,
+      fareBreakdown: fare.fareBreakdown,
       pickupLocation,
       destinationAddress,
       dropBack: dropBack || false,
@@ -120,8 +127,34 @@ exports.createBooking = async (req, res) => {
     }
     res.status(201).json(savedBooking);
   } catch (error) {
-    console.error('❌ Booking creation failed:', error);
-    res.status(500).json({ message: 'Server error while creating booking' });
+    if (error instanceof fareCalculationService.FareCalculationError) {
+      return res.status(error.statusCode).json({ message: error.message, code: error.code });
+    }
+    console.error('Booking creation failed:', error);
+    return res.status(500).json({ message: 'Server error while creating booking' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// FARE ESTIMATE
+// Provides customer-facing route details. Creation always recalculates them.
+// ---------------------------------------------------------------------------
+exports.estimateFare = async (req, res) => {
+  try {
+    const { pickupLocation, destinationAddress, vehicleType, dropBack } = req.body;
+    const estimate = await fareCalculationService.calculateFare({
+      pickupLocation,
+      destinationAddress,
+      vehicleType,
+      dropBack,
+    });
+    return res.json(estimate);
+  } catch (error) {
+    if (error instanceof fareCalculationService.FareCalculationError) {
+      return res.status(error.statusCode).json({ message: error.message, code: error.code });
+    }
+    console.error('Fare estimate failed:', error);
+    return res.status(500).json({ message: 'Unable to estimate the fare' });
   }
 };
 

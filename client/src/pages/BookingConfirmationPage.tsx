@@ -20,6 +20,9 @@ interface BookingData {
   time: string;
   waitingRequired?: boolean;
   waitingHours?: number;
+  distanceKm?: number;
+  durationMin?: number;
+  totalFare?: number;
   _id?: string;
 }
 

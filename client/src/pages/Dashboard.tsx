@@ -396,6 +396,23 @@ const Dashboard = () => {
                     </div>
                   </div>
 
+                  {selectedScheduledBooking.totalFare !== undefined && (
+                    <div className="grid grid-cols-3 gap-4 border-t pt-4">
+                      <div>
+                        <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Distance</p>
+                        <p className="font-medium text-gray-900">{selectedScheduledBooking.distanceKm?.toFixed(1) || "—"} km</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Drive Time</p>
+                        <p className="font-medium text-gray-900">~{selectedScheduledBooking.durationMin || "—"} min</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Estimated Fare</p>
+                        <p className="font-bold text-blue-700">₹{selectedScheduledBooking.totalFare}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {(selectedScheduledBooking.waitingHours > 0 || selectedScheduledBooking.dropBack) && (
                     <div className="pt-4 border-t mt-2 grid grid-cols-2 gap-4">
                       {selectedScheduledBooking.waitingHours > 0 && (

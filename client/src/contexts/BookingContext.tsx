@@ -33,6 +33,9 @@ export type Booking = {
   date: string;
   time: string;
   waitingHours: number;
+  distanceKm?: number;
+  durationMin?: number;
+  totalFare?: number;
   rejectionReason?: string;
 };
 
@@ -140,4 +143,4 @@ export const useBookings = () => {
   }
   return context;
 };
-
+

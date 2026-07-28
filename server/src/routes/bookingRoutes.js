@@ -22,6 +22,19 @@ const pinAttemptLimiter = rateLimit({
   max: 5, // Limit each IP to 5 requests per windowMs
   message: { message: "Too many failed PIN attempts. Please try again after 15 minutes." }
 });
+
+// Protect the billable Google Routes endpoint from refresh loops and abuse.
+const fareEstimateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many fare estimates. Please try again in a few minutes.' },
+});
+
+// POST /api/bookings/fare-estimate - Calculate an authenticated route estimate
+router.post('/fare-estimate', verifyUserToken, fareEstimateLimiter, bookingController.estimateFare);
+
 // POST /api/bookings - Create a booking
 router.post("/", verifyUserToken, bookingController.createBooking);
 // router.post("/", bookingController.createBooking);

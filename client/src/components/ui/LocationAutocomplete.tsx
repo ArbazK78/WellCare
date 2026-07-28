@@ -8,6 +8,7 @@ export interface LocationData {
   address: string;
   lat?: number;
   lng?: number;
+  placeId?: string;
 }
 
 interface LocationAutocompleteProps {
@@ -130,14 +131,15 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
 
     if (placesService.current && prediction.place_id) {
       placesService.current.getDetails(
-        { placeId: prediction.place_id, fields: ['formatted_address', 'name', 'geometry'] },
+        { placeId: prediction.place_id, fields: ['formatted_address', 'name', 'geometry', 'place_id'] },
         (place, status) => {
           if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
             onChange({
               name: place.name || name,
               address: place.formatted_address || '',
               lat: place.geometry?.location?.lat(),
-              lng: place.geometry?.location?.lng()
+              lng: place.geometry?.location?.lng(),
+              placeId: place.place_id || prediction.place_id
             });
           } else {
             onChange({ name, address: prediction.description });

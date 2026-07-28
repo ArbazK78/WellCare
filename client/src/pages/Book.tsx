@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MapPin, PhoneCall, Clock, Calendar, User, Mail, Navigation, Home, ChevronDown, CheckCircle2 } from "lucide-react";
+import { MapPin, PhoneCall, Clock, Calendar, User, Mail, Navigation, Home, ChevronDown, CheckCircle2, Loader2 } from "lucide-react";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
@@ -31,6 +31,7 @@ import { SchedulePicker, ScheduleData } from "@/components/SchedulePicker";
 import { cn } from "@/lib/utils";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import api from "@/lib/api";
+import axios from "axios";
 
 // ─── Step indicator ──────────────────────────────────────────────────────────
 const StepIndicator = ({ current, steps }: { current: number, steps: string[] }) => (
@@ -142,6 +143,28 @@ const ScheduledSuccessView = () => {
 };
 
 // ─── Main component ───────────────────────────────────────────────────────────
+type FareEstimate = {
+  distanceKm: number;
+  durationMin: number;
+  totalFare: number;
+  fareBreakdown: {
+    baseFare: number;
+    perKmRate: number;
+    distanceFare: number;
+    tripMultiplier: 1 | 2;
+    currency: "INR";
+  };
+};
+
+const serializeLocation = (location: LocationData | string) =>
+  typeof location === "string" ? location : JSON.stringify(location);
+
+const getApiErrorMessage = (error: unknown, fallback: string) => {
+  if (!axios.isAxiosError(error)) return fallback;
+  const data = error.response?.data as { message?: string } | undefined;
+  return data?.message || fallback;
+};
+
 const libraries: ("places" | "drawing" | "geometry" | "localContext" | "visualization")[] = ["places"];
 
 const Book = () => {
@@ -161,6 +184,10 @@ const Book = () => {
   const [tempBookingMode, setTempBookingMode] = useState<"now" | "schedule">("now");
   const [modePopoverOpen, setModePopoverOpen] = useState(false);
   const [isScheduledSuccess, setIsScheduledSuccess] = useState(false);
+  const [fareEstimate, setFareEstimate] = useState<FareEstimate | null>(null);
+  const [isEstimatingFare, setIsEstimatingFare] = useState(false);
+  const [fareEstimateError, setFareEstimateError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [scheduleData, setScheduleData] = useState<ScheduleData>({
     pickupDate: new Date(),
@@ -236,7 +263,52 @@ const Book = () => {
     Boolean(typeof formData.pickupLocation === 'string' ? formData.pickupLocation.trim() : formData.pickupLocation?.name?.trim()) &&
     Boolean(typeof formData.destinationAddress === 'string' ? formData.destinationAddress.trim() : formData.destinationAddress?.name?.trim());
 
-  // ── Submit ──
+  // Fetch the customer-facing estimate only on the final step. The server
+  // recalculates it again during creation and remains the pricing authority.
+  useEffect(() => {
+    const finalStep = bookingMode === "schedule" ? 3 : 2;
+    if (step !== finalStep || !formData.vehicleType || !step1Valid) {
+      setFareEstimate(null);
+      setFareEstimateError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setIsEstimatingFare(true);
+      setFareEstimate(null);
+      setFareEstimateError(null);
+      try {
+        const { data } = await api.post<FareEstimate>("/bookings/fare-estimate", {
+          pickupLocation: serializeLocation(formData.pickupLocation),
+          destinationAddress: serializeLocation(formData.destinationAddress),
+          vehicleType: formData.vehicleType,
+          dropBack: formData.dropBack,
+        });
+        if (!cancelled) setFareEstimate(data);
+      } catch (error: unknown) {
+        if (!cancelled) {
+          setFareEstimateError(getApiErrorMessage(error, "Unable to calculate the route fare."));
+        }
+      } finally {
+        if (!cancelled) setIsEstimatingFare(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    bookingMode,
+    step,
+    formData.vehicleType,
+    formData.pickupLocation,
+    formData.destinationAddress,
+    formData.dropBack,
+    step1Valid,
+  ]);
+  // Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -245,13 +317,14 @@ const Book = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const response = await api.post("/bookings", {
         name:               userName || formData.name,
         date:               bookingMode === 'schedule' && scheduleData.pickupDate ? format(scheduleData.pickupDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"), 
         time:               bookingMode === 'schedule' && scheduleData.pickupTime ? scheduleData.pickupTime : format(new Date(), "HH:mm"), 
-        pickupLocation:     typeof formData.pickupLocation === 'string' ? formData.pickupLocation : JSON.stringify(formData.pickupLocation),
-        destinationAddress: typeof formData.destinationAddress === 'string' ? formData.destinationAddress : JSON.stringify(formData.destinationAddress),
+        pickupLocation:     serializeLocation(formData.pickupLocation),
+        destinationAddress: serializeLocation(formData.destinationAddress),
         vehicleType:        formData.vehicleType,
         dropBack:           formData.dropBack,
         waitingHours:       formData.waitingRequired ? formData.waitingHours : 0,
@@ -269,9 +342,15 @@ const Book = () => {
           navigate(`/finding-guide/${response.data._id}`);
         }
       }
-    } catch (error: any) {
-      console.error("❌ Booking failed:", error);
-      toast({ title: "Booking Failed", description: "Failed to submit booking. Please try again.", variant: "destructive" });
+    } catch (error: unknown) {
+      console.error("Booking failed:", error);
+      toast({
+        title: "Booking Failed",
+        description: getApiErrorMessage(error, "Failed to submit booking. Please try again."),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -628,6 +707,33 @@ const Book = () => {
                       </div>
                     </div>
 
+                    <div className="rounded-xl border border-blue-100 bg-blue-50 p-4" aria-live="polite">
+                      {isEstimatingFare ? (
+                        <div className="flex items-center justify-center gap-2 py-3 text-sm font-medium text-blue-700">
+                          <Loader2 className="h-4 w-4 animate-spin" /> Calculating the driving route…
+                        </div>
+                      ) : fareEstimate ? (
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Estimated route fare</p>
+                              <p className="mt-1 text-sm text-gray-600">
+                                {fareEstimate.distanceKm.toFixed(1)} km · approximately {fareEstimate.durationMin} min
+                                {formData.dropBack ? " round trip" : ""}
+                              </p>
+                            </div>
+                            <p className="text-2xl font-black text-blue-800">₹{fareEstimate.totalFare}</p>
+                          </div>
+                          <div className="border-t border-blue-100 pt-2 text-xs text-gray-500">
+                            ₹{fareEstimate.fareBreakdown.baseFare} base + {fareEstimate.distanceKm.toFixed(1)} km × ₹{fareEstimate.fareBreakdown.perKmRate}/km
+                          </div>
+                        </div>
+                      ) : fareEstimateError ? (
+                        <p className="py-2 text-sm font-medium text-red-700">{fareEstimateError}</p>
+                      ) : (
+                        <p className="py-2 text-sm text-gray-500">Select a vehicle to calculate your route and fare.</p>
+                      )}
+                    </div>
                     <div className="flex gap-4 pt-2">
                       <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(bookingMode === 'schedule' ? 2 : 1)}>
                         ← Back
@@ -635,9 +741,9 @@ const Book = () => {
                       <Button
                         type="submit"
                         className="flex-1"
-                        disabled={!formData.vehicleType}
+                        disabled={!formData.vehicleType || !fareEstimate || isEstimatingFare || isSubmitting}
                       >
-                        Confirm Booking
+                        {isSubmitting ? "Confirming…" : "Confirm Booking"}
                       </Button>
                     </div>
                   </div>

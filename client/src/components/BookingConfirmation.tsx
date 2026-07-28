@@ -20,6 +20,9 @@ type BookingProps = {
     time: string;
     waitingRequired?: boolean;
     waitingHours?: number;
+    distanceKm?: number;
+    durationMin?: number;
+    totalFare?: number;
   };
 };
 
@@ -79,7 +82,18 @@ const BookingConfirmation = ({ booking }: BookingProps) => {
                 </div>
               )}
 
-              {/* Drop-back */}
+                            {booking.totalFare !== undefined && (
+                <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                  <p className="text-sm text-gray-500">Route & Fare</p>
+                  <div className="mt-1 flex items-center justify-between gap-4">
+                    <p className="font-medium text-gray-700">
+                      {booking.distanceKm?.toFixed(1) || "—"} km · approximately {booking.durationMin || "—"} min
+                    </p>
+                    <p className="text-xl font-bold text-blue-700">₹{booking.totalFare}</p>
+                  </div>
+                </div>
+              )}
+{/* Drop-back */}
               {booking.dropBack && (
                 <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
                   <Home className="h-4 w-4 shrink-0" />

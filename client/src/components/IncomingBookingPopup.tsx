@@ -43,24 +43,21 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
 
   const { location: guideLocation } = useGeolocation();
   const [awayText, setAwayText] = useState<string | null>(null);
-  const [tripText, setTripText] = useState<string | null>(null);
+  const tripText = booking.distanceKm && booking.durationMin
+    ? `${booking.durationMin} min (${booking.distanceKm.toFixed(1)} km) trip`
+    : null;
 
-  // Distance Matrix Calculations
+  // Calculate the guide-to-pickup arrival estimate
   useEffect(() => {
     // Only proceed if Google Maps is loaded
     if (!isLoaded || !window.google?.maps?.DistanceMatrixService) return;
 
     const service = new window.google.maps.DistanceMatrixService();
     const pickupData = parseLocation(booking.pickupLocation || booking.location || '');
-    const dropoffData = parseLocation(booking.destinationAddress || '');
     
     const pickupPoint = pickupData.lat && pickupData.lng 
       ? { lat: pickupData.lat, lng: pickupData.lng } 
       : (pickupData.address || pickupData.name);
-      
-    const dropoffPoint = dropoffData.lat && dropoffData.lng 
-      ? { lat: dropoffData.lat, lng: dropoffData.lng } 
-      : (dropoffData.address || dropoffData.name);
 
     // Leg 1: Guide to Pickup (Away)
     if (guideLocation && pickupPoint) {
@@ -76,20 +73,7 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
       });
     }
 
-    // Leg 2: Pickup to Dropoff (Trip)
-    if (pickupPoint && dropoffPoint && !tripText) {
-      service.getDistanceMatrix({
-        origins: [pickupPoint],
-        destinations: [dropoffPoint],
-        travelMode: window.google.maps.TravelMode.DRIVING,
-      }, (response, status) => {
-        if (status === 'OK' && response?.rows[0]?.elements[0]?.status === 'OK') {
-          const element = response.rows[0].elements[0];
-          setTripText(`${element.duration.text} (${element.distance.text}) trip`);
-        }
-      });
-    }
-  }, [guideLocation, booking, tripText, isLoaded]);
+  }, [guideLocation, booking, isLoaded]);
 
   // Countdown timer
   useEffect(() => {
@@ -214,6 +198,11 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
             {vehicleLabel && (
               <span className="text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-1 rounded-full font-medium">
                 {vehicleLabel}
+              </span>
+            )}
+            {booking.totalFare !== undefined && (
+              <span className="text-xs bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-1 rounded-full font-semibold">
+                ₹{booking.totalFare} fare
               </span>
             )}
             {booking.dropBack && (

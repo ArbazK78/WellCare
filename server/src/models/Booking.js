@@ -128,9 +128,20 @@ const BookingSchema = new mongoose.Schema({
     type: Date,
     required: false,
   },
+  // Authoritative road-route pricing snapshot captured at creation time.
+  distanceKm: { type: Number, min: 0 },
+  durationMin: { type: Number, min: 0 },
   totalFare: {
     type: Number,
+    min: 0,
     default: 0,
+  },
+  fareBreakdown: {
+    baseFare: { type: Number, min: 0 },
+    perKmRate: { type: Number, min: 0 },
+    distanceFare: { type: Number, min: 0 },
+    tripMultiplier: { type: Number, enum: [1, 2] },
+    currency: { type: String, default: 'INR' },
   },
   paymentStatus: {
     type: String,
