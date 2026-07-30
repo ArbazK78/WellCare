@@ -8,6 +8,12 @@ export type Guide = {
   name: string;
   image: string;
   rating: number;
+  currentLocation?: {
+    lat: number;
+    lng: number;
+    accuracy: number;
+    updatedAt: string;
+  };
 };
 
 export type Customer = {
@@ -25,8 +31,15 @@ export type Booking = {
   estimatedEndAt?: string | null;
   reservationStatus?: "open" | "claimed" | "readiness_pending" | "ready" | "fallback_dispatching" | "fulfilled" | "unfulfilled";
   assignmentSource?: "instant" | "reservation" | "fallback";
+  readinessRequestedAt?: string | null;
   readinessDeadline?: string | null;
   readinessConfirmedAt?: string | null;
+  activationAt?: string | null;
+  plannedDepartureAt?: string | null;
+  guideToPickupEtaMinutes?: number | null;
+  lastEtaCheckedAt?: string | null;
+  pickupWindowStart?: string | null;
+  pickupWindowEnd?: string | null;
   fallbackDispatchAt?: string | null;
   fulfilmentDeadline?: string | null;
   guideCommitmentStatus?: string;

@@ -30,10 +30,18 @@ const BookingSchema = new mongoose.Schema({
   },
   assignmentSource: { type: String, enum: ['instant', 'reservation', 'fallback'], default: undefined },
   reservationAcceptedAt: { type: Date, default: null },
+  readinessRequestedAt: { type: Date, default: null },
   readinessDeadline: { type: Date, default: null },
   readinessConfirmedAt: { type: Date, default: null },
   fallbackDispatchAt: { type: Date, default: null },
   fulfilmentDeadline: { type: Date, default: null },
+  activationAt: { type: Date, default: null },
+  plannedDepartureAt: { type: Date, default: null },
+  guideToPickupEtaMinutes: { type: Number, min: 0, default: null },
+  lastEtaCheckedAt: { type: Date, default: null },
+  pickupWindowStart: { type: Date, default: null },
+  pickupWindowEnd: { type: Date, default: null },
+  reservationProcessingAt: { type: Date, default: null, select: false },
   estimatedEndAt: { type: Date, default: null },
   guideCommitmentStatus: {
     type: String,
@@ -185,6 +193,10 @@ BookingSchema.index(
 BookingSchema.index(
   { bookingMode: 1, reservationStatus: 1, scheduledAt: 1 },
   { name: 'reservation_marketplace' }
+);
+BookingSchema.index(
+  { bookingMode: 1, status: 1, reservationProcessingAt: 1, readinessRequestedAt: 1 },
+  { name: 'reservation_scheduler_lock' }
 );
 BookingSchema.index(
   { guide: 1, scheduledAt: 1, estimatedEndAt: 1, reservationStatus: 1 },

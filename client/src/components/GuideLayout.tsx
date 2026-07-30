@@ -2,6 +2,7 @@ import { useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useGuideAuth } from "@/contexts/GuideAuthContext";
 import { useBookingNotifications } from "@/hooks/useBookingNotifications";
+import { useReservationNotifications } from "@/hooks/useReservationNotifications";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -35,6 +36,7 @@ import "@/styles/ui2.css";
 const GuideLayout = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isOnline, currentGuide, guideLogout, toggleOnlineStatus } = useGuideAuth();
   const { incomingBooking, dismissIncoming, cancelledBooking, dismissCancelled } = useBookingNotifications(isOnline && isAuthenticated);
+  useReservationNotifications(isAuthenticated);
   const navigate  = useNavigate();
   const { toast } = useToast();
   const { location: liveLocation } = useGeolocation(isAuthenticated && isOnline);

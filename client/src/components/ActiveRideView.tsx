@@ -94,12 +94,8 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
 
   useEffect(() => {
     if (!isLoaded || !guideLocation) return;
-
     // Determine what route we should be showing right now
     const targetMode = isInProgress ? 'dropoff' : 'pickup';
-
-    // If we've already calculated this exact route mode, don't do it again
-    if (routeMode === targetMode && directions) return;
 
     const pickupPoint = pickupData.lat && pickupData.lng 
       ? { lat: pickupData.lat, lng: pickupData.lng } 
@@ -141,7 +137,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
         }
       }
     );
-  }, [isLoaded, guideLocation, isInProgress, routeMode, directions, booking, pickupData.lat, pickupData.lng, pickupData.address, pickupData.name]);
+  }, [isLoaded, guideLocation?.lat, guideLocation?.lng, guideLocation?.accuracy, isInProgress, booking._id, booking.destinationAddress, pickupData.lat, pickupData.lng, pickupData.address, pickupData.name]);
 
   const handleArriveClick = async () => {
     setIsArriving(true);
@@ -177,12 +173,12 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
   const defaultCenter = guideLocation || { lat: 20.5937, lng: 78.9629 };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] w-full max-w-lg mx-auto overflow-hidden bg-gray-50 rounded-2xl shadow-xl relative mt-4 border border-gray-200">
+    <div className="flex flex-col h-[calc(100vh-140px)] w-full max-w-lg mx-auto overflow-hidden bg-background rounded-2xl shadow-xl relative mt-4 border border-border">
       
       {/* Map Area */}
-      <div className="flex-1 min-h-[30%] w-full bg-gray-200 relative">
+      <div className="flex-1 min-h-[30%] w-full bg-muted relative">
         {!isLoaded ? (
-          <div className="absolute inset-0 flex items-center justify-center text-gray-500 font-medium">
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground font-medium">
             Loading Map...
           </div>
         ) : (
@@ -226,44 +222,44 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
       </div>
 
       {/* Bottom Dashboard Panel (Slide-up Drawer) */}
-      <div className="bg-white rounded-t-3xl -mt-6 relative z-10 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] transition-all duration-300 ease-in-out max-h-[70%] overflow-y-auto shrink-0">
+      <div className="bg-card text-card-foreground rounded-t-3xl -mt-6 relative z-10 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] transition-all duration-300 ease-in-out max-h-[70%] overflow-y-auto shrink-0">
         {/* Drawer Handle */}
         <button 
           onClick={() => setIsDrawerOpen(!isDrawerOpen)}
           className="w-full py-2 flex items-center justify-center -mt-4 mb-2 cursor-pointer focus:outline-none"
         >
-          <div className="w-12 h-1.5 bg-gray-200 rounded-full flex items-center justify-center">
-            {isDrawerOpen ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronUp size={14} className="text-gray-400" />}
+          <div className="w-12 h-1.5 bg-muted rounded-full flex items-center justify-center">
+            {isDrawerOpen ? <ChevronDown size={14} className="text-muted-foreground" /> : <ChevronUp size={14} className="text-muted-foreground" />}
           </div>
         </button>
         
         <div className="flex items-center justify-between mb-6">
           <div>
-            <p className="text-sm font-semibold text-blue-600 uppercase tracking-wider mb-1">
+            <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-1">
               {isInProgress ? "In Progress" : isArrived ? "Waiting for Customer" : "En Route to Pickup"}
             </p>
-            <h2 className="text-2xl font-bold text-gray-900 line-clamp-1">{pickupData.name}</h2>
+            <h2 className="text-2xl font-bold text-foreground line-clamp-1">{pickupData.name}</h2>
             {pickupData.address && (
-              <p className="text-gray-500 text-sm mt-1 line-clamp-1">{pickupData.address}</p>
+              <p className="text-muted-foreground text-sm mt-1 line-clamp-1">{pickupData.address}</p>
             )}
           </div>
         </div>
 
-        <div className="bg-gray-50 p-4 rounded-xl flex items-center justify-between mb-6 border border-gray-100">
+        <div className="bg-muted/50 p-4 rounded-xl flex items-center justify-between mb-6 border border-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
+            <div className="w-10 h-10 bg-primary/15 rounded-full flex items-center justify-center text-primary">
               <User size={20} />
             </div>
             <div>
-              <p className="font-bold text-gray-900">{booking.name || booking.customer?.name || "Customer"}</p>
-              <p className="text-xs text-gray-500 font-medium">Passenger</p>
+              <p className="font-bold text-foreground">{booking.name || booking.customer?.name || "Customer"}</p>
+              <p className="text-xs text-muted-foreground font-medium">Passenger</p>
             </div>
           </div>
           <div className="flex gap-2">
             <Button 
               variant="outline" 
               size="icon" 
-              className="rounded-full w-10 h-10 border-gray-300 text-gray-700"
+              className="rounded-full w-10 h-10 border-border text-foreground"
               onClick={() => {
                 const phone = booking.customer?.phone || (booking as any).phone;
                 if (phone) window.open(`tel:${phone}`);
@@ -274,7 +270,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
             <Button 
               variant="outline" 
               size="icon" 
-              className="rounded-full w-10 h-10 border-gray-300 text-gray-700"
+              className="rounded-full w-10 h-10 border-border text-foreground"
               onClick={() => toast({ title: "Coming soon", description: "In-app chat will be available in the next update." })}
             >
               <MessageSquare size={18} />
@@ -284,26 +280,26 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
 
         {/* Expanded Drawer Content */}
         <div className={cn("overflow-hidden transition-all duration-300 ease-in-out", isDrawerOpen ? "max-h-[500px] opacity-100 mb-6" : "max-h-0 opacity-0")}>
-          <div className="space-y-4 pt-4 border-t border-gray-100">
+          <div className="space-y-4 pt-4 border-t border-border">
             {/* Destination */}
             {booking.destinationAddress && (
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Dropoff</p>
-                <p className="font-medium text-gray-900 line-clamp-1">{parseLocation(booking.destinationAddress).name}</p>
-                <p className="text-sm text-gray-500 line-clamp-1">{parseLocation(booking.destinationAddress).address}</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Dropoff</p>
+                <p className="font-medium text-foreground line-clamp-1">{parseLocation(booking.destinationAddress).name}</p>
+                <p className="text-sm text-muted-foreground line-clamp-1">{parseLocation(booking.destinationAddress).address}</p>
               </div>
             )}
             
             {/* Fare Estimate */}
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Estimated Fare</p>
-              <p className="font-bold text-gray-900 text-lg">₹{booking.totalFare || 0}</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Estimated Fare</p>
+              <p className="font-bold text-foreground text-lg">₹{booking.totalFare || 0}</p>
             </div>
 
             {/* Cancel Button */}
             <Button 
               variant="outline" 
-              className="w-full mt-2 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+              className="w-full mt-2 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
               onClick={() => setIsCancelModalOpen(true)}
             >
               Cancel Ride
@@ -320,8 +316,8 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
             {isCompleting ? "Completing..." : "Complete Trip"}
           </Button>
         ) : isArrived ? (
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex flex-col items-center">
-            <p className="text-sm font-semibold text-blue-800 mb-3 text-center">
+          <div className="bg-primary/10 border border-primary/25 rounded-xl p-4 flex flex-col items-center">
+            <p className="text-sm font-semibold text-primary mb-3 text-center">
               Enter {booking.name || "Customer"}'s Safety PIN
             </p>
             <div className="flex gap-2 w-full max-w-[200px] mb-4">
@@ -329,7 +325,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
                 value={otpInput}
                 onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
                 placeholder="____"
-                className="text-center text-2xl tracking-[0.5em] font-bold h-12 bg-white"
+                className="text-center text-2xl tracking-[0.5em] font-bold h-12 bg-background text-foreground border-border"
                 type="tel"
               />
             </div>
@@ -360,9 +356,9 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
       {/* Cancellation Modal */}
       {isCancelModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-lg rounded-t-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 shadow-2xl">
+          <div className="bg-card text-card-foreground w-full max-w-lg rounded-t-2xl p-6 animate-in slide-in-from-bottom-8 duration-300 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
                 <AlertTriangle className="text-red-500" size={24} />
                 Cancel Ride
               </h3>
@@ -370,7 +366,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
                 <X size={20} />
               </Button>
             </div>
-            <p className="text-gray-600 mb-6">Are you sure you want to cancel this ride? This will pass the booking to the next available guide.</p>
+            <p className="text-muted-foreground mb-6">Are you sure you want to cancel this ride? This will pass the booking to the next available guide.</p>
             
             <div className="space-y-2 mb-6">
               {CANCEL_REASONS.map((reason) => (
@@ -380,8 +376,8 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
                   className={cn(
                     "w-full text-left px-4 py-3 rounded-lg border transition-all duration-200",
                     cancelReason === reason 
-                      ? "border-red-500 bg-red-50 text-red-700 font-medium shadow-sm" 
-                      : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                      ? "border-destructive bg-destructive/10 text-destructive font-medium shadow-sm"
+                      : "border-border hover:bg-muted text-foreground"
                   )}
                 >
                   {reason}

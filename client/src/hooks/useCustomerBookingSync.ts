@@ -38,7 +38,7 @@ export const useCustomerBookingSync = () => {
   // that were already accepted before the user opened the dashboard.
   useEffect(() => {
     if (!seededRef.current && bookings.length > 0) {
-      bookings.forEach((b) => prevStatusMap.current.set(b._id, b.status));
+      bookings.forEach((b) => prevStatusMap.current.set(b._id, `${b.status}:${b.reservationStatus || ""}:${b.guide?._id || ""}`));
       seededRef.current = true;
       console.log(`🌱 [CustomerSync] Seeded ${bookings.length} booking(s).`);
     }
@@ -57,10 +57,12 @@ export const useCustomerBookingSync = () => {
 
         (data as any[]).forEach((booking) => {
           const prev = prevStatusMap.current.get(booking._id);
+          const snapshot = `${booking.status}:${booking.reservationStatus || ""}:${booking.guide?._id || ""}`;
+          const previousStatus = prev?.split(":")[0];
 
-          if (prev && prev !== booking.status) {
+          if (prev && prev !== snapshot) {
             hadTransition = true;
-            if (prev === 'pending' && booking.status === 'accepted') {
+            if (previousStatus === 'pending' && booking.status === 'accepted') {
               // 🎉 Guide just accepted — play the chime once
               console.log(`🔔 [CustomerSync] Booking ${booking._id} accepted by guide!`);
               bookingAudio.playOnce(assignedSoundUrl);
@@ -70,11 +72,14 @@ export const useCustomerBookingSync = () => {
           }
 
           // Always update the snapshot so we track the latest status
-          prevStatusMap.current.set(booking._id, booking.status);
+          prevStatusMap.current.set(booking._id, snapshot);
         });
 
-        // Only re-render if something actually changed (avoids thrashing)
-        if (hadTransition) {
+        // Active rides also refresh for guide-location-only changes.
+        const hasActiveRide = (data as any[]).some((booking) =>
+          ['accepted', 'arrived', 'in_progress'].includes(booking.status)
+        );
+        if (hadTransition || hasActiveRide) {
           await refreshBookings();
         }
       } catch (err) {

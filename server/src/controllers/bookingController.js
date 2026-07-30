@@ -6,6 +6,8 @@ const dispatchService = require('../services/dispatchService');
 const scheduledBookingService = require('../services/scheduledBookingService');
 const reservationService = require('../services/reservationService');
 const fareCalculationService = require('../services/fareCalculationService');
+const notificationService = require('../services/notificationService');
+const NotificationEvent = require('../models/NotificationEvent');
 const {
   ACTIVE_ASSIGNED_STATUSES,
   canAssignedGuideTransition,
@@ -179,7 +181,7 @@ exports.estimateFare = async (req, res) => {
 exports.getUserBookings = async (req, res) => {
   try {
     const bookings = await Booking.find({ customer: req.userId })
-      .populate('guide', 'name image rating phone') // phone included for Contact Guide
+      .populate('guide', 'name image rating phone currentLocation') // phone included for Contact Guide
       .sort({ createdAt: -1 });
 
     res.json(bookings);
@@ -320,7 +322,7 @@ exports.startTrip = async (req, res) => {
     await booking.save();
 
     // Re-populate to match standard return shape if needed
-    await booking.populate('guide', 'name image rating phone');
+    await booking.populate('guide', 'name image rating phone currentLocation');
 
     res.json({ message: 'Trip started successfully', booking });
   } catch (error) {
@@ -354,7 +356,7 @@ exports.updateBookingStatus = async (req, res) => {
     if (status === 'accepted') {
       const offeredBooking = await Booking.findOne({ _id: bookingId }).select('bookingMode');
       const assignmentFields = offeredBooking?.bookingMode === 'schedule'
-        ? { reservationStatus: 'fulfilled', assignmentSource: 'fallback', guideCommitmentStatus: 'active' }
+        ? { reservationStatus: 'fulfilled', assignmentSource: 'fallback', guideCommitmentStatus: 'active', activationAt: new Date() }
         : { assignmentSource: 'instant' };
       const booking = await Booking.findOneAndUpdate(
         {
@@ -376,10 +378,18 @@ exports.updateBookingStatus = async (req, res) => {
         { new: true, runValidators: true }
       )
         .populate('customer', 'name phone email')
-        .populate('guide', 'name image rating phone');
+        .populate('guide', 'name image rating phone currentLocation');
 
       if (!booking) {
         return res.status(409).json({ message: 'This offer is no longer available to you.' });
+      }
+      if (booking.bookingMode === 'schedule') {
+        booking.reservationAudit.push({ event: 'fallback_accepted', at: new Date(), actor: 'guide', guide: guideId });
+        await booking.save();
+        await Promise.all([
+          notificationService.enqueue({ booking: booking._id, recipientRole: 'guide', recipient: guideId, type: 'departure_required', payload: { scheduledAt: booking.scheduledAt, fallback: true }, dedupeKey: `${booking._id}:departure_required` }),
+          notificationService.enqueue({ booking: booking._id, recipientRole: 'customer', recipient: booking.customer._id || booking.customer, type: 'guide_en_route', payload: { scheduledAt: booking.scheduledAt, fallback: true }, dedupeKey: `${booking._id}:guide_en_route` }),
+        ]);
       }
       return res.json({ message: 'Booking accepted successfully', booking });
     }
@@ -437,7 +447,7 @@ exports.updateBookingStatus = async (req, res) => {
     if (status === 'completed') booking.completedAt = new Date();
     await booking.save();
     await booking.populate('customer', 'name phone email');
-    await booking.populate('guide', 'name image rating phone');
+    await booking.populate('guide', 'name image rating phone currentLocation');
 
     return res.json({ message: 'Booking status updated successfully', booking });
   } catch (error) {
@@ -525,7 +535,7 @@ exports.getGuideCompletedBookings = async (req, res) => {
 exports.getBookingById = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.bookingId)
-      .populate('guide', 'name image rating phone')
+      .populate('guide', 'name image rating phone currentLocation')
       .populate('customer', 'name phone email');
 
     if (!booking) {
@@ -562,8 +572,8 @@ exports.getGuideSchedule = async (req, res) => {
     const bookings = await Booking.find({
       guide: req.guide.id,
       bookingMode: 'schedule',
-      reservationStatus: { $in: ['claimed', 'readiness_pending', 'ready', 'fulfilled'] },
-      status: { $nin: ['cancelled', 'completed'] },
+      reservationStatus: { $in: ['claimed', 'readiness_pending', 'ready'] },
+      status: 'pending',
     })
       .populate('customer', 'name phone email')
       .sort({ scheduledAt: 1 });
@@ -621,5 +631,33 @@ exports.releaseReservation = async (req, res) => {
   } catch (error) {
     console.error('Reservation release failed:', error);
     return res.status(500).json({ message: 'Unable to release reservation' });
+  }
+};
+exports.getGuideReservationNotifications = async (req, res) => {
+  try {
+    const events = await NotificationEvent.find({
+      recipientRole: 'guide',
+      recipient: req.guide.id,
+      'channelStatus.inApp': 'pending',
+    }).sort({ createdAt: 1 }).limit(20).lean();
+    return res.json(events);
+  } catch (error) {
+    console.error('Failed to load guide reservation notifications:', error);
+    return res.status(500).json({ message: 'Unable to load reservation notifications' });
+  }
+};
+
+exports.acknowledgeGuideReservationNotification = async (req, res) => {
+  try {
+    const event = await NotificationEvent.findOneAndUpdate(
+      { _id: req.params.notificationId, recipientRole: 'guide', recipient: req.guide.id },
+      { $set: { 'channelStatus.inApp': 'delivered', deliveredAt: new Date() } },
+      { new: true },
+    );
+    if (!event) return res.status(404).json({ message: 'Notification not found' });
+    return res.json({ message: 'Notification acknowledged' });
+  } catch (error) {
+    console.error('Failed to acknowledge guide reservation notification:', error);
+    return res.status(500).json({ message: 'Unable to acknowledge notification' });
   }
 };

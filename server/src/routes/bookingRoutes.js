@@ -52,6 +52,8 @@ router.get('/guide/recent-cancellations', verifyGuideToken, getGuideRecentCancel
 // Scheduled reservation marketplace (Cab guides only)
 router.get('/guide/reservations/opportunities', verifyGuideToken, bookingController.getGuideReservationOpportunities);
 router.get('/guide/reservations/schedule', verifyGuideToken, bookingController.getGuideSchedule);
+router.get('/guide/reservations/notifications', verifyGuideToken, bookingController.getGuideReservationNotifications);
+router.put('/guide/reservations/notifications/:notificationId/ack', verifyGuideToken, bookingController.acknowledgeGuideReservationNotification);
 router.put('/guide/reservations/:bookingId/claim', verifyGuideToken, bookingController.claimReservation);
 router.put('/guide/reservations/:bookingId/readiness', verifyGuideToken, bookingController.confirmReservationReadiness);
 router.put('/guide/reservations/:bookingId/release', verifyGuideToken, bookingController.releaseReservation);

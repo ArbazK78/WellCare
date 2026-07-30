@@ -70,19 +70,20 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
   const isArrived = booking.status === 'arrived';
   const isInProgress = booking.status === 'in_progress';
 
-  // FM-2 fix: Never use the guide's string city (e.g., "Ahmedabad") as a literal route start.
-  // We use a small offset from pickupData to simulate the guide arriving.
-  let guideLocationFromDb: any = { 
-    lat: (pickupData.lat || 28.6139) + 0.005, 
-    lng: (pickupData.lng || 77.2090) + 0.005 
-  };
+  const storedGuideLocation = booking.guide?.currentLocation;
+  const hasGuideLocation = Boolean(
+    storedGuideLocation
+    && Number.isFinite(storedGuideLocation.lat)
+    && Number.isFinite(storedGuideLocation.lng)
+  );
+  const guideLocationFromDb = hasGuideLocation
+    ? { lat: storedGuideLocation!.lat, lng: storedGuideLocation!.lng }
+    : null;
 
   useEffect(() => {
     if (!isLoaded) return;
 
     const targetMode = isInProgress ? 'dropoff' : 'pickup';
-
-    if (routeMode === targetMode && directions) return;
 
     const pickupPoint = pickupData.lat && pickupData.lng 
       ? { lat: pickupData.lat, lng: pickupData.lng } 
@@ -92,6 +93,11 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
     let destination: google.maps.LatLngLiteral | string;
 
     if (targetMode === 'pickup') {
+      if (!guideLocationFromDb) {
+        setDirections(null);
+        setRouteMode(null);
+        return;
+      }
       origin = guideLocationFromDb;
       destination = pickupPoint;
     } else {
@@ -123,17 +129,17 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
       }
     );
     // FM-3 fix: Removed `booking` and `directions` from dependency array to prevent infinite re-fetches on poll
-  }, [isLoaded, isInProgress, routeMode, pickupData.lat, pickupData.lng, pickupData.address, pickupData.name, destinationData.lat, destinationData.lng, destinationData.address, destinationData.name]);
+  }, [isLoaded, isInProgress, guideLocationFromDb?.lat, guideLocationFromDb?.lng, pickupData.lat, pickupData.lng, pickupData.address, pickupData.name, destinationData.lat, destinationData.lng, destinationData.address, destinationData.name]);
 
   const defaultCenter = pickupData.lat && pickupData.lng ? { lat: pickupData.lat, lng: pickupData.lng } : { lat: 23.0225, lng: 72.5714 };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] w-full max-w-lg mx-auto overflow-hidden bg-gray-50 rounded-2xl shadow-xl relative mt-4 border border-gray-200">
+    <div className="flex flex-col h-[calc(100vh-80px)] w-full max-w-lg mx-auto overflow-hidden bg-background rounded-2xl shadow-xl relative mt-4 border border-border">
       
       {/* Map Area */}
-      <div className="flex-1 min-h-[30%] w-full bg-gray-200 relative">
+      <div className="flex-1 min-h-[30%] w-full bg-muted relative">
         {!isLoaded ? (
-          <div className="absolute inset-0 flex items-center justify-center text-gray-500 font-medium">
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground font-medium">
             Loading Map...
           </div>
         ) : (
@@ -176,49 +182,49 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
       </div>
 
       {/* Drawer Container */}
-      <div className="bg-white rounded-t-3xl -mt-6 relative z-10 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] transition-all duration-300 ease-in-out max-h-[70%] overflow-y-auto shrink-0 border-t border-gray-100">
+      <div className="bg-card text-card-foreground rounded-t-3xl -mt-6 relative z-10 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] transition-all duration-300 ease-in-out max-h-[70%] overflow-y-auto shrink-0 border-t border-border">
         
         {/* Pull Handle */}
-        <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-6 cursor-pointer" onClick={() => setIsDrawerOpen(!isDrawerOpen)} />
+        <div className="w-12 h-1.5 bg-muted-foreground/40 rounded-full mx-auto mb-6 cursor-pointer" onClick={() => setIsDrawerOpen(!isDrawerOpen)} />
 
         {/* Status Header */}
         <div className="mb-6 flex justify-between items-start">
           <div>
-            <p className="text-xs font-bold tracking-widest text-blue-600 uppercase mb-1">
+            <p className="text-xs font-bold tracking-widest text-primary uppercase mb-1">
               {isAccepted ? "Guide En Route" : isArrived ? "Guide Arrived" : "In Progress"}
             </p>
-            <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+            <h2 className="text-2xl font-extrabold text-foreground tracking-tight">
               {isAccepted ? "Heading to pickup" : isArrived ? "Meet your guide" : "Heading to drop-off"}
             </h2>
           </div>
           <button 
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
-            className="p-2 bg-gray-100 rounded-full text-gray-600 hover:bg-gray-200 transition-colors"
+            className="p-2 bg-muted rounded-full text-muted-foreground hover:bg-muted/80 transition-colors"
           >
             {isDrawerOpen ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
           </button>
         </div>
 
         {/* Primary Info (Always visible) */}
-        <div className="flex items-center gap-4 mb-6 bg-blue-50/50 p-4 rounded-xl border border-blue-100/50">
+        <div className="flex items-center gap-4 mb-6 bg-primary/10 p-4 rounded-xl border border-primary/20">
           {booking.guide ? (
             <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-200 border-2 border-white shadow-sm shrink-0">
               <img src={(booking.guide as any).image} alt={(booking.guide as any).name} className="w-full h-full object-cover" />
             </div>
           ) : (
-            <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center shrink-0 border-2 border-white shadow-sm">
-              <User className="h-6 w-6 text-blue-400" />
+            <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center shrink-0 border-2 border-white shadow-sm">
+              <User className="h-6 w-6 text-primary" />
             </div>
           )}
           
           <div className="flex-1">
-            <h3 className="font-bold text-lg text-gray-900 leading-tight">{(booking.guide as any)?.name || "Your Guide"}</h3>
-            <div className="flex items-center text-sm font-medium text-gray-600 mt-1">
+            <h3 className="font-bold text-lg text-foreground leading-tight">{(booking.guide as any)?.name || "Your Guide"}</h3>
+            <div className="flex items-center text-sm font-medium text-muted-foreground mt-1">
               <span className="flex items-center text-yellow-500 mr-2">
                 <span className="mr-1">★</span> {(booking.guide as any)?.rating || "New"}
               </span>
               {booking.vehicleType && (
-                <span className="bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full text-xs">
+                <span className="bg-muted text-foreground px-2 py-0.5 rounded-full text-xs">
                   {booking.vehicleType === 'scooter' ? '🛵 Scooter' : '🚖 Cab'}
                 </span>
               )}
@@ -239,9 +245,9 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
         {/* Safety PIN - Show prominently before trip starts */}
         {!isInProgress && user?.safetyPin && (
           <div className="w-full bg-gray-900 border border-gray-800 rounded-xl p-4 text-center mb-6 shadow-sm">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">Safety PIN</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1">Safety PIN</p>
             <p className="text-3xl font-black text-white tracking-[0.3em]">{user.safetyPin}</p>
-            <p className="text-xs text-gray-500 mt-2">Share this with your guide to start the trip</p>
+            <p className="text-xs text-muted-foreground mt-2">Share this with your guide to start the trip</p>
           </div>
         )}
 
@@ -249,39 +255,39 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
         {isDrawerOpen && (
           <div className="space-y-6 pt-2 animate-in slide-in-from-top-4 fade-in duration-200">
             {/* Route Details */}
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-              <h4 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider">Trip Details</h4>
+            <div className="bg-muted/50 rounded-xl p-4 border border-border">
+              <h4 className="text-sm font-bold text-foreground mb-3 uppercase tracking-wider">Trip Details</h4>
               <div className="space-y-4">
                 <div className="flex gap-3 relative">
                   <div className="absolute left-[9px] top-[24px] bottom-[-16px] w-[2px] bg-gray-200" />
-                  <div className="w-5 h-5 rounded-full bg-blue-100 border-2 border-blue-600 z-10 shrink-0 mt-0.5" />
+                  <div className="w-5 h-5 rounded-full bg-primary/15 border-2 border-blue-600 z-10 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">{pickupData.name || "Pickup Location"}</p>
-                    <p className="text-xs text-gray-500 mt-0.5 leading-snug">{pickupData.address}</p>
+                    <p className="text-sm font-semibold text-foreground">{pickupData.name || "Pickup Location"}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{pickupData.address}</p>
                   </div>
                 </div>
                 
                 <div className="flex gap-3">
                   <div className="w-5 h-5 rounded-full bg-green-100 border-2 border-green-600 z-10 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">{destinationData.name || "Drop-off Location"}</p>
-                    <p className="text-xs text-gray-500 mt-0.5 leading-snug">{destinationData.address}</p>
+                    <p className="text-sm font-semibold text-foreground">{destinationData.name || "Drop-off Location"}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{destinationData.address}</p>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Estimated Fare */}
-            <div className="bg-green-50/50 rounded-xl p-4 border border-green-100 flex justify-between items-center">
-              <span className="text-sm font-bold text-gray-900 uppercase tracking-wider">Estimated Fare</span>
-              <span className="text-xl font-black text-green-700">₹{(booking as any).totalFare || 0}</span>
+            <div className="bg-emerald-500/10 rounded-xl p-4 border border-emerald-500/25 flex justify-between items-center">
+              <span className="text-sm font-bold text-foreground uppercase tracking-wider">Estimated Fare</span>
+              <span className="text-xl font-black text-emerald-700 dark:text-emerald-300">₹{(booking as any).totalFare || 0}</span>
             </div>
 
             {/* Cancel Button */}
             {!isInProgress && (
               <Button 
                 variant="outline" 
-                className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 h-12 font-semibold transition-colors"
+                className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30 h-12 font-semibold transition-colors"
                 onClick={() => onCancelClick(booking._id)}
               >
                 <AlertTriangle className="w-4 h-4 mr-2" />

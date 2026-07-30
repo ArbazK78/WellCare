@@ -16,24 +16,31 @@ const PORT = process.env.PORT || 5000;
 // BL-3 fix: Add helmet for basic security headers
 app.use(helmet());
 
-// BL-1 fix: Add basic rate limiting to prevent brute force attacks
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // Limit each IP to 300 requests per `window` (here, per 15 minutes)
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api', apiLimiter);
-
-app.use(cors({
-  // BM-8 fix: Allow configurable origin via env variable for production
+// CORS must run before rate limiting so even throttled responses include the
+// browser's access-control headers. Otherwise a legitimate 429 is misleadingly
+// surfaced by Chrome as a CORS failure.
+const corsMiddleware = cors({
   origin: process.env.CLIENT_URL || 'http://localhost:8080',
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  optionsSuccessStatus: 200, // ✅ for legacy browser support
+  optionsSuccessStatus: 200,
+});
+app.use(corsMiddleware);
+app.options(/.*/, corsMiddleware);
 
-}));
+// Protect state-changing API operations without charging the budget for
+// browser preflights or authenticated dashboard polling. Sensitive endpoints
+// such as fare estimates and PIN attempts retain their stricter route limiters.
+const apiMutationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS' || req.method === 'GET',
+  message: { message: 'Too many changes were requested. Please wait a moment and try again.' },
+});
+app.use('/api', apiMutationLimiter);
 // BM-9 fix: Add a strict 1MB size limit to JSON parsing to prevent DoS via large payloads
 app.use(express.json({ limit: '1mb' }));
 app.use(
@@ -61,6 +68,7 @@ const validateObjectId = (req, res, next, id) => {
 app.param('id', validateObjectId);
 app.param('bookingId', validateObjectId);
 app.param('guideId', validateObjectId);
+app.param('notificationId', validateObjectId);
 
 app.use('/api/guides', guideRoutes);
 app.use('/api', authRoutes);

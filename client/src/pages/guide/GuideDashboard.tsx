@@ -51,7 +51,7 @@ const formatBookingTime = (raw: string | Date): string => {
 
 
 const GuideDashboard = () => {
-  const { currentGuide } = useGuideAuth();
+  const { currentGuide, isOnline } = useGuideAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -59,6 +59,7 @@ const GuideDashboard = () => {
   const [reservationOpportunities, setReservationOpportunities] = useState<Booking[]>([]);
   const [mySchedule, setMySchedule] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+
 
   // Get initials from name for avatar
   const getInitials = (name: string) => {
@@ -109,7 +110,7 @@ const GuideDashboard = () => {
   // Initial fetch on mount / currentGuide change
   useEffect(() => { fetchBookings(); }, [fetchBookings]);
   useEffect(() => {
-    const interval = window.setInterval(fetchBookings, 30_000);
+    const interval = window.setInterval(fetchBookings, 10_000);
     return () => window.clearInterval(interval);
   }, [fetchBookings]);
 
@@ -126,7 +127,6 @@ const GuideDashboard = () => {
   const acceptedBookings = bookings.filter(booking => booking.status === "accepted" || booking.status === "arrived" || booking.status === "in_progress");
   const completedBookings = bookings.filter(booking => booking.status === "completed");
 
-
   const claimReservation = async (bookingId: string) => {
     try {
       await api.put(`/bookings/guide/reservations/${bookingId}/claim`);
@@ -140,6 +140,9 @@ const GuideDashboard = () => {
   const confirmReadiness = async (bookingId: string) => {
     try {
       await api.put(`/bookings/guide/reservations/${bookingId}/readiness`);
+      if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission().catch(() => undefined);
+      }
       toast({ title: "Readiness confirmed", description: "Stay online so WellCare can protect the pickup." });
       await fetchBookings();
     } catch (error: any) {
@@ -327,7 +330,7 @@ const GuideDashboard = () => {
                 </span>
               )}
               {isAccepted && (
-                <span className="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                <span className="ml-2 bg-primary/15 text-primary text-xs px-2 py-1 rounded-full">
                   Accepted
                 </span>
               )}
@@ -353,30 +356,30 @@ const GuideDashboard = () => {
       <CardContent>
         <div className="space-y-4">
           <div className="flex items-center">
-            <User className="h-4 w-4 mr-2 text-gray-500" />
+            <User className="h-4 w-4 mr-2 text-muted-foreground" />
             <span className="font-medium">Customer Details:</span> 
             <span className="ml-2">{booking.customer?.name || "Not provided"}</span>
             <span className="ml-2">{booking.customer?.phone || "No phone"}</span>
           </div>
           
-          <div className="flex flex-col flex-1 mt-1 border-l-2 border-gray-100 pl-4 ml-2 mb-4">
+          <div className="flex flex-col flex-1 mt-1 border-l-2 border-border pl-4 ml-2 mb-4">
             <div className="relative">
-              <div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-white" />
+              <div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-background" />
               <div>
-                <p className="font-semibold text-gray-900 text-sm">{parseLocation((booking as any).pickupLocation || (booking as any).location).name}</p>
+                <p className="font-semibold text-foreground text-sm">{parseLocation((booking as any).pickupLocation || (booking as any).location).name}</p>
                 {parseLocation((booking as any).pickupLocation || (booking as any).location).address && (
-                  <p className="text-xs text-gray-500 mt-0.5">{parseLocation((booking as any).pickupLocation || (booking as any).location).address}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{parseLocation((booking as any).pickupLocation || (booking as any).location).address}</p>
                 )}
               </div>
             </div>
             
             {(booking as any).destinationAddress && (
               <div className="relative mt-3">
-                <div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-sm bg-green-500 ring-4 ring-white" />
+                <div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-sm bg-emerald-500 ring-4 ring-background" />
                 <div>
-                  <p className="font-semibold text-gray-900 text-sm">{parseLocation((booking as any).destinationAddress).name}</p>
+                  <p className="font-semibold text-foreground text-sm">{parseLocation((booking as any).destinationAddress).name}</p>
                   {parseLocation((booking as any).destinationAddress).address && (
-                    <p className="text-xs text-gray-500 mt-0.5">{parseLocation((booking as any).destinationAddress).address}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{parseLocation((booking as any).destinationAddress).address}</p>
                   )}
                 </div>
               </div>
@@ -390,7 +393,7 @@ const GuideDashboard = () => {
               </span>
             )}
             {(booking as any).dropBack && (
-              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+              <span className="text-xs bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded-full font-medium">
                 🏠 Drop-back home
               </span>
             )}
@@ -398,7 +401,7 @@ const GuideDashboard = () => {
           
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center">
-              <Calendar className="h-4 w-4 mr-2 text-gray-500" />
+              <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
               <span>
                 {!isPending && !isAccepted && (booking as any).completedAt 
                   ? 'Today' 
@@ -406,7 +409,7 @@ const GuideDashboard = () => {
               </span>
             </div>
             <div className="flex items-center">
-              <Clock className="h-4 w-4 mr-2 text-gray-500" />
+              <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
               <span>
                 {!isPending && !isAccepted && (booking as any).completedAt 
                   ? formatBookingTime((booking as any).completedAt) 
@@ -448,7 +451,7 @@ const GuideDashboard = () => {
           )}
 
           {isAccepted && booking.status === 'arrived' && (
-            <div className="pt-2 text-center text-blue-600 font-medium bg-blue-50 py-2 rounded-md border border-blue-100">
+            <div className="pt-2 text-center text-primary font-medium bg-primary/10 py-2 rounded-md border border-primary/20">
               <MapPin className="h-5 w-5 inline mr-1" /> Arrived at Location
             </div>
           )}
@@ -465,7 +468,7 @@ const GuideDashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
+      <div className="flex h-screen items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
@@ -481,13 +484,13 @@ const GuideDashboard = () => {
     return (
       <div className="min-h-screen bg-background text-foreground pb-8 flex flex-col">
         {/* Minimal header for active ride */}
-        <div className="bg-white border-b border-gray-100 px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+        <div className="bg-card border-b border-border px-4 py-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
             <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
-            Active Ride
+            {activeBooking.bookingMode === "schedule" ? "Scheduled pickup active" : "Active Ride"}
           </h1>
           <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
-            <X className="h-5 w-5 text-gray-500" />
+            <X className="h-5 w-5 text-muted-foreground" />
           </Button>
         </div>
         <div className="flex-1 px-4">
@@ -566,7 +569,7 @@ const GuideDashboard = () => {
               Scheduled ({reservationOpportunities.length + mySchedule.length})
             </TabsTrigger>
             <TabsTrigger value="completed" className="flex items-center">
-              <Check className="h-4 w-4 mr-1 text-gray-400" />
+              <Check className="h-4 w-4 mr-1 text-muted-foreground" />
               Completed ({completedBookings.length})
             </TabsTrigger>
           </TabsList>
@@ -640,10 +643,25 @@ const GuideDashboard = () => {
                           {(booking.customer as any)?.email && <p className="text-muted-foreground">{(booking.customer as any).email}</p>}
                         </div>
                         <span className="mt-3 inline-flex rounded-full bg-secondary px-3 py-1 text-xs font-semibold capitalize">{(booking.reservationStatus || "claimed").replaceAll("_", " ")}</span>
+                        {booking.reservationStatus === "readiness_pending" && (
+                          <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+                            <p className="font-semibold text-foreground">Readiness confirmation required</p>
+                            <p className="mt-1 text-muted-foreground">Confirm by {booking.readinessDeadline ? format(new Date(booking.readinessDeadline), "h:mm a") : "the displayed deadline"}. You must be online with location enabled for departure planning.</p>
+                          </div>
+                        )}
+                        {booking.reservationStatus === "ready" && (
+                          <div className="mt-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-3 text-sm">
+                            <p className="font-semibold text-foreground">You are confirmed and preparing</p>
+                            <p className="mt-1 text-muted-foreground">{booking.plannedDepartureAt ? `Planned departure: ${format(new Date(booking.plannedDepartureAt), "h:mm a")}` : "WellCare will calculate your departure time from your live location."}</p>
+                            <p className="mt-2 text-xs text-muted-foreground">Stay online with location enabled. ETA is checked continuously; if Maps determines you cannot reach pickup safely, backup dispatch starts immediately.</p>
+                            {booking.readinessDeadline && <p className="mt-2 text-xs font-semibold text-foreground">Online/location checkpoint: {format(new Date(booking.readinessDeadline), "h:mm a")}</p>}
+                            {!isOnline && <p className="mt-2 font-semibold text-amber-700 dark:text-amber-300">Go online now so we can verify your location and ETA.</p>}
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {booking.reservationStatus === "readiness_pending" && <Button onClick={() => confirmReadiness(booking._id)}>I am ready</Button>}
-                        {booking.reservationStatus !== "fulfilled" && <Button variant="outline" onClick={() => releaseReservation(booking._id)}>Release</Button>}
+                        <Button variant="outline" onClick={() => releaseReservation(booking._id)}>Release</Button>
                       </div>
                     </CardContent>
                   </Card>

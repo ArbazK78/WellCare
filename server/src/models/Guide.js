@@ -39,6 +39,7 @@ const guideSchema = new mongoose.Schema({
   lastOnlineAt: { type: Date },  currentLocation: {
     lat: { type: Number },
     lng: { type: Number },
+    accuracy: { type: Number },
     updatedAt: { type: Date },
   },
   registeredAt: { type: Date, default: Date.now }

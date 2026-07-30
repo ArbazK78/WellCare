@@ -4,8 +4,9 @@ import { jwtDecode } from 'jwt-decode';
 import { logoutGuide, logoutCustomer } from "@/utils/logoutHelper";
 
 const api = axios.create({
-  // FC-2 fix: Use env variable for API base URL, fallback to localhost for dev
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
+  // In local development, use Vite's same-origin proxy so phones on the LAN
+  // do not incorrectly resolve localhost as the phone itself.
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   withCredentials: false,
 });
 

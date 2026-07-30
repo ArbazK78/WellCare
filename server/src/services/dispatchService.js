@@ -1,5 +1,6 @@
 const Booking = require('../models/Booking');
 const Guide = require('../models/Guide');
+const fareCalculationService = require('./fareCalculationService');
 
 // Fisher-Yates Shuffle for randomization
 const shuffleArray = (array) => {
@@ -13,10 +14,48 @@ const shuffleArray = (array) => {
 const OFFER_DURATION_MS = 30 * 1000; // Per-guide response window
 const DISPATCH_DURATION_MS = 90 * 1000; // Total matching window
 
+const findScheduledFallbackGuides = async (booking, { excludeGuideId, now = new Date() } = {}) => {
+  const freshSince = new Date(now.getTime() - 5 * 60 * 1000);
+  const guides = await Guide.find({
+    status: 'approved',
+    isOnline: true,
+    vehicleType: 'cab',
+    'currentLocation.updatedAt': { $gte: freshSince },
+    'currentLocation.accuracy': { $lte: 500 },
+    ...(excludeGuideId ? { _id: { $ne: excludeGuideId } } : {}),
+  }).select('_id currentLocation');
+
+  const ranked = [];
+  for (const guide of guides) {
+    const conflict = await Booking.exists({
+      _id: { $ne: booking._id },
+      guide: guide._id,
+      bookingMode: 'schedule',
+      reservationStatus: { $in: ['claimed', 'readiness_pending', 'ready', 'fulfilled'] },
+      status: { $nin: ['cancelled', 'completed'] },
+      scheduledAt: { $lt: new Date(booking.estimatedEndAt.getTime() + 30 * 60 * 1000) },
+      estimatedEndAt: { $gt: new Date(booking.scheduledAt.getTime() - 30 * 60 * 1000) },
+    });
+    if (conflict) continue;
+    try {
+      const route = await fareCalculationService.calculateFare({
+        pickupLocation: JSON.stringify({ lat: guide.currentLocation.lat, lng: guide.currentLocation.lng }),
+        destinationAddress: booking.pickupLocation,
+        vehicleType: 'cab',
+        dropBack: false,
+      });
+      const remainingMinutes = (booking.scheduledAt.getTime() - now.getTime()) / 60000;
+      if (route.durationMin + 2 <= remainingMinutes) ranked.push({ id: guide._id, eta: route.durationMin });
+    } catch (error) {
+      console.error(`Fallback ETA failed for guide ${guide._id}:`, error.message);
+    }
+  }
+  return ranked.sort((a, b) => a.eta - b.eta).map((candidate) => candidate.id);
+};
 /**
  * Initializes the dispatch sequence for a newly created booking.
  */
-exports.initiateDispatch = async (bookingId, matchedGuideIds, { durationMs = DISPATCH_DURATION_MS } = {}) => {
+exports.initiateDispatch = async (bookingId, matchedGuideIds, { durationMs = DISPATCH_DURATION_MS, randomize = true } = {}) => {
   const booking = await Booking.findById(bookingId);
   if (!booking) return;
 
@@ -32,7 +71,7 @@ exports.initiateDispatch = async (bookingId, matchedGuideIds, { durationMs = DIS
   }
 
   // Randomize the queue for fair dispatching
-  const queue = shuffleArray([...matchedGuideIds]);
+  const queue = randomize ? shuffleArray([...matchedGuideIds]) : [...matchedGuideIds];
   
   // Pop the first guide to offer
   const firstGuide = queue.shift();
@@ -129,15 +168,15 @@ exports.autoRotateExpiredOffers = async () => {
     });
     if (waitingBookings.length > 0) {
       for (const booking of waitingBookings) {
-        const guideCriteria = { status: 'approved', isOnline: true };
-        if (booking.bookingMode === 'schedule') guideCriteria.vehicleType = 'cab';
-        const guides = await Guide.find(guideCriteria).select('_id');
         const attempted = new Set((booking.eligibleGuides || []).map((id) => id.toString()));
-        const newGuideIds = guides.map((guide) => guide._id).filter((id) => !attempted.has(id.toString()));
+        const candidateIds = booking.bookingMode === 'schedule'
+          ? await findScheduledFallbackGuides(booking, { now })
+          : (await Guide.find({ status: 'approved', isOnline: true }).select('_id')).map((guide) => guide._id);
+        const newGuideIds = candidateIds.filter((id) => !attempted.has(id.toString()));
         if (newGuideIds.length > 0) {
           booking.eligibleGuides = [...(booking.eligibleGuides || []), ...newGuideIds];
           await booking.save();
-          await exports.initiateDispatch(booking._id, newGuideIds);
+          await exports.initiateDispatch(booking._id, newGuideIds, { randomize: booking.bookingMode !== 'schedule' });
         }
       }
     }
@@ -158,3 +197,4 @@ exports.autoRotateExpiredOffers = async () => {
 };
 
 exports.DISPATCH_DURATION_MS = DISPATCH_DURATION_MS;
+exports.findScheduledFallbackGuides = findScheduledFallbackGuides;

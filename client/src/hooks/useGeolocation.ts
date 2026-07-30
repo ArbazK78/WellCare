@@ -4,6 +4,7 @@ import { useToast } from './use-toast';
 export interface Coordinates {
   lat: number;
   lng: number;
+  accuracy: number;
 }
 
 export function useGeolocation(enabled = true) {
@@ -30,6 +31,7 @@ export function useGeolocation(enabled = true) {
         setLocation({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
         });
         setLoading(false);
       },
