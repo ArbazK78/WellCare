@@ -1,4 +1,5 @@
 const Booking = require('../models/Booking');
+const Guide = require('../models/Guide');
 
 // Fisher-Yates Shuffle for randomization
 const shuffleArray = (array) => {
@@ -9,21 +10,24 @@ const shuffleArray = (array) => {
   return array;
 };
 
-const OFFER_DURATION_MS = 30 * 1000; // 30 seconds
+const OFFER_DURATION_MS = 30 * 1000; // Per-guide response window
+const DISPATCH_DURATION_MS = 90 * 1000; // Total matching window
 
 /**
  * Initializes the dispatch sequence for a newly created booking.
  */
 exports.initiateDispatch = async (bookingId, matchedGuideIds) => {
   const booking = await Booking.findById(bookingId);
-  if (!booking || matchedGuideIds.length === 0) {
-    if (booking) {
-      booking.status = 'cancelled';
-      booking.cancelReason = 'No eligible guides found';
-      booking.cancelledBy = 'system';
-    booking.cancelledAt = new Date();
-      await booking.save();
-    }
+  if (!booking) return;
+
+  booking.dispatchStartedAt = booking.dispatchStartedAt || new Date();
+  booking.dispatchExpiresAt = booking.dispatchExpiresAt
+    || new Date(booking.dispatchStartedAt.getTime() + DISPATCH_DURATION_MS);
+
+  // Zero supply is not an immediate failure. Keep the request open so a guide
+  // who comes online during the matching window can still receive it.
+  if (matchedGuideIds.length === 0) {
+    await booking.save();
     return;
   }
 
@@ -38,7 +42,7 @@ exports.initiateDispatch = async (bookingId, matchedGuideIds) => {
   booking.offerExpiresAt = new Date(Date.now() + OFFER_DURATION_MS);
   
   // Keep eligibleGuides populated just in case legacy logic relies on it
-  booking.eligibleGuides = matchedGuideIds; 
+  booking.eligibleGuides = [...new Set([...(booking.eligibleGuides || []).map((id) => id.toString()), ...matchedGuideIds.map((id) => id.toString())])];
 
   await booking.save();
   console.log(`🚀 Dispatch initiated for Booking ${booking.bookingRefId}. Offered to: ${firstGuide}`);
@@ -79,23 +83,14 @@ exports.rotateToNextGuide = async (bookingId, expectedGuideId = null) => {
     return true;
   }
 
-  const cancelled = await Booking.findOneAndUpdate(
+  // Keep the booking open until the overall 90-second deadline. A newly-online
+  // guide may still become eligible during the remaining matching window.
+  const waiting = await Booking.findOneAndUpdate(
     filter,
-    {
-      $set: {
-        currentOfferedGuide: null,
-        offerExpiresAt: null,
-        status: 'cancelled',
-        cancelReason: 'All matched guides rejected or timed out',
-        cancelledBy: 'system',
-        cancelledAt: new Date(),
-      },
-    },
+    { $set: { currentOfferedGuide: null, offerExpiresAt: null, guideQueue: [] } },
     { new: true, runValidators: true }
   );
-  if (!cancelled) return false;
-  console.log(`Booking ${booking.bookingRefId} auto-cancelled: no guides remain`);
-  return true;
+  return Boolean(waiting);
 };
 /**
  * Finds all pending bookings with an expired offer and rotates them.
@@ -103,9 +98,44 @@ exports.rotateToNextGuide = async (bookingId, expectedGuideId = null) => {
  */
 exports.autoRotateExpiredOffers = async () => {
   try {
+    const now = new Date();
+
+    await Booking.updateMany(
+      { status: 'pending', dispatchExpiresAt: { $ne: null, $lte: now } },
+      { $set: {
+        currentOfferedGuide: null,
+        offerExpiresAt: null,
+        status: 'cancelled',
+        cancelReason: 'We could not find an available guide within 90 seconds. No charge was made.',
+        cancelledBy: 'system',
+        cancelledAt: now,
+      } }
+    );
+
+    // A guide polling after coming online can claim requests that began with no supply.
+    const waitingBookings = await Booking.find({
+      status: 'pending',
+      dispatchExpiresAt: { $gt: now },
+      currentOfferedGuide: null,
+      offerExpiresAt: null,
+    });
+    if (waitingBookings.length > 0) {
+      const guides = await Guide.find({ status: 'approved', isOnline: true }).select('_id');
+      for (const booking of waitingBookings) {
+        const attempted = new Set((booking.eligibleGuides || []).map((id) => id.toString()));
+        const newGuideIds = guides.map((guide) => guide._id).filter((id) => !attempted.has(id.toString()));
+        if (newGuideIds.length > 0) {
+          booking.eligibleGuides = [...(booking.eligibleGuides || []), ...newGuideIds];
+          await booking.save();
+          await exports.initiateDispatch(booking._id, newGuideIds);
+        }
+      }
+    }
+
     const expiredBookings = await Booking.find({
       status: 'pending',
-      offerExpiresAt: { $ne: null, $lt: new Date() }
+      offerExpiresAt: { $ne: null, $lt: now },
+      dispatchExpiresAt: { $gt: now }
     });
 
     for (const booking of expiredBookings) {
@@ -116,3 +146,5 @@ exports.autoRotateExpiredOffers = async () => {
     console.error('Error auto-rotating expired offers:', err);
   }
 };
+
+exports.DISPATCH_DURATION_MS = DISPATCH_DURATION_MS;

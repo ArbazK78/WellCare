@@ -64,9 +64,6 @@ exports.createBooking = async (req, res) => {
     if (normalizedMode === 'now') {
       const allApproved = await Guide.find({ status: 'approved', isOnline: true }).select('_id');
       eligibleGuideIds = allApproved.map((guide) => guide._id);
-      if (eligibleGuideIds.length === 0) {
-        return res.status(400).json({ message: 'No approved guides available at the moment. Please try again later.' });
-      }
     }
     const bookingRefId = generateBookingRefId();
     // Recalculate on the trusted server at booking creation. The customer-facing
@@ -114,14 +111,8 @@ exports.createBooking = async (req, res) => {
         const guides = await Guide.find({ status: 'approved', isOnline: true }).select('_id');
         eligibleGuideIds = guides.map((guide) => guide._id);
       }
-      if (eligibleGuideIds.length > 0) {
-        await dispatchService.initiateDispatch(savedBooking._id, eligibleGuideIds);
-        console.log(`Booking ${savedBooking._id} created and dispatched`);
-      } else {
-        savedBooking.dispatchStartedAt = null;
-        await savedBooking.save();
-        console.log(`Scheduled booking ${savedBooking._id} is waiting for guide availability`);
-      }
+      await dispatchService.initiateDispatch(savedBooking._id, eligibleGuideIds);
+      console.log(`Booking ${savedBooking._id} entered the dispatch window`);
     } else {
       console.log(`Scheduled booking ${savedBooking._id} will dispatch at ${savedBooking.dispatchAt.toISOString()}`);
     }

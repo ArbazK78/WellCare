@@ -1,4 +1,5 @@
 import api from "@/lib/api";
+import "@/styles/ui2.css";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -90,11 +91,11 @@ const AdminDashboard = () => {
   const getRejectedGuides = () => guides.filter(guide => guide.status === "rejected");
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background text-foreground">
       <Navbar />
       
       <div className="container mx-auto px-4 py-8">
-        <Card className="mb-8">
+        <Card className="mb-8 surface-card">
           <CardHeader>
             <CardTitle className="text-2xl">WellCare Admin</CardTitle>
             <CardTitle className="text-xl">Control Panel</CardTitle>
@@ -118,7 +119,7 @@ const AdminDashboard = () => {
           </TabsList>
           
           <TabsContent value="pending">
-            <Card>
+            <Card className="surface-card">
               <CardHeader>
                 <CardTitle>Pending Guide Applications</CardTitle>
                 <CardDescription>
@@ -249,7 +250,7 @@ const AdminDashboard = () => {
           </TabsContent>
           
           <TabsContent value="approved">
-            <Card>
+            <Card className="surface-card">
               <CardHeader>
                 <CardTitle>Approved Guides</CardTitle>
                 <CardDescription>
@@ -300,7 +301,7 @@ const AdminDashboard = () => {
           </TabsContent>
           
           <TabsContent value="rejected">
-            <Card>
+            <Card className="surface-card">
               <CardHeader>
                 <CardTitle>Rejected Applications</CardTitle>
                 <CardDescription>

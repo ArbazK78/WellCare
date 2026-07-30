@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
+import "@/styles/ui2.css";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,7 +15,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Link, useNavigate } from "react-router-dom";
 import { useBookings } from "@/contexts/BookingContext";
 import { useAuth } from "@/contexts/AuthContext";
-import Navbar from "@/components/Navbar";
+import Navbar from "@/components/AppNavbar";
 import UserActiveRideView from "@/components/UserActiveRideView";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -316,7 +317,7 @@ const Dashboard = () => {
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col"
+      className="min-h-screen bg-background text-foreground flex flex-col"
       style={{ overflowY: activeTab === 'profile' ? 'hidden' : 'auto' }}
     >
       <Navbar />
@@ -354,8 +355,8 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <Card className="mb-8 shadow-sm">
-                <CardHeader className="bg-gray-50/50 border-b pb-4">
+              <Card className="mb-8 surface-card overflow-hidden">
+                <CardHeader className="bg-secondary/35 border-b pb-4">
                   <div className="flex justify-between items-center">
                     <CardTitle className="text-lg flex items-center gap-2">
                       <Calendar className="w-5 h-5 text-gray-500" />
@@ -448,13 +449,13 @@ const Dashboard = () => {
       ) : (
         <div className="container mx-auto px-4 py-12">
           <div className="max-w-4xl mx-auto">
-            <div className="mb-8">
+            <div className="mb-8 surface-card">
             <h1 className="text-3xl font-bold mb-2">Your Dashboard</h1>
             <p className="text-gray-600">Manage your bookings and profile</p>
           </div>
 
           <Tabs defaultValue="bookings" onValueChange={setActiveTab}>
-            <TabsList className="mb-8">
+            <TabsList className="mb-8 surface-card">
               <TabsTrigger value="bookings">Bookings</TabsTrigger>
               <TabsTrigger value="profile">Profile</TabsTrigger>
             </TabsList>
@@ -598,7 +599,7 @@ const Dashboard = () => {
                       })()}
                     </div>
                   ) : (
-                    <Card>
+                    <Card className="surface-card">
                       <CardContent className="p-6 text-center">
                         <p className="text-gray-500 mb-4">You don't have any upcoming bookings</p>
                         <Button asChild>
@@ -617,7 +618,7 @@ const Dashboard = () => {
                     {scheduledBookings.length > 0 ? (
                       <div className="space-y-4">
                         {scheduledBookings.map((booking: any) => (
-                          <Card key={booking._id} className="bg-gray-50/50">
+                          <Card key={booking._id} className="bg-secondary/35 border-border/70">
                             <CardContent className="p-6">
                               <div className="flex flex-col md:flex-row justify-between items-center">
                                 <div className="space-y-2">
@@ -751,7 +752,7 @@ const Dashboard = () => {
                       ))}
                     </div>
                   ) : (
-                    <Card>
+                    <Card className="surface-card">
                       <CardContent className="p-6 text-center">
                         <p className="text-gray-500">You don't have any past bookings</p>
                       </CardContent>
@@ -763,7 +764,7 @@ const Dashboard = () => {
 
             {/* ── PROFILE TAB ── */}
             <TabsContent value="profile" className="overflow-y-hidden">
-              <Card>
+              <Card className="surface-card">
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Your Profile</CardTitle>
                   {isEditingProfile ? (

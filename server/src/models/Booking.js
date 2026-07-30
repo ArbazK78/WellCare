@@ -19,6 +19,8 @@ const BookingSchema = new mongoose.Schema({
   scheduledAt: { type: Date, default: null },
   dispatchAt: { type: Date, default: null },
   dispatchStartedAt: { type: Date, default: null },
+  // Hard product-level deadline for finding a guide once dispatch begins.
+  dispatchExpiresAt: { type: Date, default: null },
 
   // Free-form metadata for future use (e.g. visitReason)
   metadata: {

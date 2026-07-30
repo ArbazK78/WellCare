@@ -1,4 +1,5 @@
 import { useState } from "react";
+import "@/styles/ui2.css";
 import { useNavigate, Link } from "react-router-dom";
 import { useGuideAuth } from "@/contexts/GuideAuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -161,10 +162,10 @@ const GuideRegister = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto">
-          <Card>
+          <Card className="surface-card">
             <CardHeader>
               <CardTitle>Become a Guide</CardTitle>
               <CardDescription>

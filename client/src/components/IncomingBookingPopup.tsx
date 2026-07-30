@@ -118,7 +118,7 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
       {/* Card */}
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
+      <div className="relative bg-card text-card-foreground border border-border rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
 
         {/* Top urgency bar */}
         <div
@@ -127,10 +127,10 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
         />
 
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5 text-white">
+        <div className="bg-[hsl(160_28%_14%)] px-6 py-5 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-blue-200 uppercase tracking-widest mb-0.5">New Booking Request</p>
+              <p className="text-xs font-medium text-white/65 uppercase tracking-widest mb-0.5">New Booking Request</p>
               <h2 className="text-xl font-bold">
                 {booking.vehicleType === 'scooter' ? '🛵 Scooter Ride' : booking.vehicleType === 'cab' ? '🚖 Cab Ride' : 'Booking Request'}
               </h2>
@@ -158,22 +158,22 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
         <div className="px-6 py-4 space-y-3">
           {/* Customer */}
           {booking.customer?.name && (
-            <div className="flex items-center gap-2 text-sm text-gray-700">
-              <User className="h-4 w-4 text-gray-400 shrink-0" />
+            <div className="flex items-center gap-2 text-sm text-foreground/80">
+              <User className="h-4 w-4 text-muted-foreground shrink-0" />
               <span className="font-medium">{booking.customer.name}</span>
             </div>
           )}
 
           {/* Locations Timeline */}
-          <div className="flex flex-col flex-1 mt-2 border-l-[3px] border-black pl-4 ml-2 mb-2 space-y-3">
+          <div className="flex flex-col flex-1 mt-2 border-l-[3px] border-foreground/70 pl-4 ml-2 mb-2 space-y-3">
             {/* Pickup */}
             <div className="relative">
-              <div className="absolute -left-[22.5px] top-1.5 w-2.5 h-2.5 rounded-full bg-black ring-[5px] ring-white" />
+              <div className="absolute -left-[22.5px] top-1.5 w-2.5 h-2.5 rounded-full bg-primary ring-[5px] ring-card" />
               <div>
-                {awayText && <p className="font-bold text-gray-900 text-[13px] mb-0.5">{awayText}</p>}
-                <p className="font-medium text-gray-700 text-[14px] leading-tight">{parseLocation(booking.pickupLocation || booking.location || '—').name}</p>
+                {awayText && <p className="font-bold text-foreground text-[13px] mb-0.5">{awayText}</p>}
+                <p className="font-medium text-foreground/80 text-[14px] leading-tight">{parseLocation(booking.pickupLocation || booking.location || '—').name}</p>
                 {parseLocation(booking.pickupLocation || booking.location || '—').address && (
-                  <p className="text-[12px] text-gray-500 mt-0.5 line-clamp-1">{parseLocation(booking.pickupLocation || booking.location || '—').address}</p>
+                  <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-1">{parseLocation(booking.pickupLocation || booking.location || '—').address}</p>
                 )}
               </div>
             </div>
@@ -181,12 +181,12 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
             {/* Destination */}
             {booking.destinationAddress && (
               <div className="relative pt-1">
-                <div className="absolute -left-[22.5px] top-2.5 w-2.5 h-2.5 rounded-sm bg-black ring-[5px] ring-white" />
+                <div className="absolute -left-[22.5px] top-2.5 w-2.5 h-2.5 rounded-sm bg-primary ring-[5px] ring-card" />
                 <div>
-                  {tripText && <p className="font-bold text-gray-900 text-[13px] mb-0.5">{tripText}</p>}
-                  <p className="font-medium text-gray-700 text-[14px] leading-tight">{parseLocation(booking.destinationAddress).name}</p>
+                  {tripText && <p className="font-bold text-foreground text-[13px] mb-0.5">{tripText}</p>}
+                  <p className="font-medium text-foreground/80 text-[14px] leading-tight">{parseLocation(booking.destinationAddress).name}</p>
                   {parseLocation(booking.destinationAddress).address && (
-                    <p className="text-[12px] text-gray-500 mt-0.5 line-clamp-1">{parseLocation(booking.destinationAddress).address}</p>
+                    <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-1">{parseLocation(booking.destinationAddress).address}</p>
                   )}
                 </div>
               </div>
@@ -196,22 +196,22 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
           {/* Badges row */}
           <div className="flex items-center gap-2 flex-wrap pt-1">
             {vehicleLabel && (
-              <span className="text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-1 rounded-full font-medium">
+              <span className="text-xs bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-full font-medium">
                 {vehicleLabel}
               </span>
             )}
             {booking.totalFare !== undefined && (
-              <span className="text-xs bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-1 rounded-full font-semibold">
+              <span className="text-xs bg-secondary text-secondary-foreground border border-border px-2.5 py-1 rounded-full font-semibold">
                 ₹{booking.totalFare} fare
               </span>
             )}
             {booking.dropBack && (
-              <span className="text-xs bg-green-50 text-green-700 border border-green-100 px-2.5 py-1 rounded-full font-medium">
+              <span className="text-xs bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 px-2.5 py-1 rounded-full font-medium">
                 🏠 Drop-back
               </span>
             )}
             {booking.waitingHours && booking.waitingHours > 0 ? (
-              <span className="text-xs bg-amber-50 text-amber-700 border border-amber-100 px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
+              <span className="text-xs bg-accent text-accent-foreground border border-[hsl(var(--warm)/.25)] px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
                 <Clock className="h-3 w-3" /> {booking.waitingHours}h wait
               </span>
             ) : null}
@@ -222,7 +222,7 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
         <div className="px-6 pb-6 flex gap-3">
           <Button
             variant="outline"
-            className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            className="flex-1 border-destructive/35 text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={handleDecline}
             disabled={isActing}
           >

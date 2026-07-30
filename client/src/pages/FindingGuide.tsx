@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import "@/styles/ui2.css";
 import { useParams, useNavigate } from "react-router-dom";
 import { bookingAudio } from "@/services/BookingAudioService";
 import { useBookings } from "@/contexts/BookingContext";
 import api from "@/lib/api";
 import assignedSoundUrl from "@/assets/guide_assigned.wav";
-import Navbar from "@/components/Navbar";
+import Navbar from "@/components/AppNavbar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ const CAPTIONS = [
   "We are matching you with certified guides nearby",
   "Guides in your area are reviewing your request",
   "Almost there — connecting you now",
-  "There are plenty of guides available for you",
+  "We will keep looking for up to 90 seconds",
   "Hang tight, we are working on it!",
 ];
 

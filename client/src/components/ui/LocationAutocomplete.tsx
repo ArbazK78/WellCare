@@ -164,30 +164,30 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
       />
       
       {isOpen && predictions.length > 0 && (
-        <div className="absolute top-full mt-1 w-full bg-white rounded-md shadow-xl border border-gray-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute top-full mt-1 w-full bg-popover text-popover-foreground rounded-xl shadow-xl border border-border overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
           <ul className="max-h-64 overflow-y-auto py-1">
             {predictions.map((p) => (
               <li
                 key={p.place_id}
                 onClick={() => handleSelect(p)}
-                className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center justify-between group transition-colors border-b border-gray-50 last:border-0"
+                className="px-3 py-2 hover:bg-secondary/70 cursor-pointer flex items-center justify-between group transition-colors border-b border-border/60 last:border-0"
               >
                 <div className="flex items-start gap-3 overflow-hidden">
-                  <div className="mt-0.5 shrink-0 p-1.5 bg-gray-100/80 rounded-full text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
+                  <div className="mt-0.5 shrink-0 p-1.5 bg-muted rounded-full text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                     <MapPin className="h-4 w-4" />
                   </div>
                   <div className="overflow-hidden">
-                    <p className="text-sm font-semibold text-gray-800 truncate group-hover:text-blue-600 transition-colors">
+                    <p className="text-sm font-semibold text-popover-foreground truncate group-hover:text-primary transition-colors">
                       {p.structured_formatting.main_text}
                     </p>
-                    <p className="text-xs text-gray-400 truncate mt-0.5">
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
                       {p.structured_formatting.secondary_text}
                     </p>
                   </div>
                 </div>
                 {p.distance_meters !== undefined && (
                   <div className="shrink-0 ml-3 text-right">
-                    <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                    <span className="text-[11px] font-semibold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full whitespace-nowrap">
                       {(p.distance_meters / 1000).toFixed(1)} km
                     </span>
                   </div>

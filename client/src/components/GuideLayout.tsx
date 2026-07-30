@@ -18,6 +18,9 @@ import CancelledBookingPopup from "@/components/CancelledBookingPopup";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
 import axios from "axios";
+import { BrandLogo } from "@/components/BrandLogo";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import "@/styles/ui2.css";
 
 /**
  * GuideLayout — standalone layout for all /guide/* pages.
@@ -96,26 +99,21 @@ const GuideLayout = ({ children }: { children: React.ReactNode }) => {
   }, [dismissCancelled, navigate]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
 
       {/* ── Guide-only header ─────────────────────────────────────────────── */}
-      <header className="border-b bg-white shadow-sm sticky top-0 z-50">
+      <header className="border-b border-border/60 bg-background/85 backdrop-blur-xl sticky top-0 z-50">
         <div className="container flex h-16 items-center justify-between">
 
           {/* Logo */}
-          <Link
-            to={isAuthenticated ? "/guide/dashboard" : "/guide/login"}
-            className="flex items-center gap-2 font-bold text-xl text-blue-700 hover:text-blue-800 transition-colors"
-          >
-            <span className="text-2xl">🏥</span>
-            <span>WellCare</span>
-            <span className="text-xs font-normal text-gray-400 ml-1 hidden sm:inline">
-              Guide Portal
-            </span>
+          <Link to={isAuthenticated ? "/guide/dashboard" : "/guide/login"} className="flex items-center gap-3">
+            <BrandLogo link={false} />
+            <span className="hidden rounded-full bg-secondary px-2.5 py-1 text-[10px] font-bold uppercase tracking-[.14em] text-primary sm:inline">Guide portal</span>
           </Link>
 
           {/* Right side */}
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             {isAuthenticated && currentGuide ? (
               <>
                 {/* ── Online / Offline toggle ── */}
@@ -125,8 +123,8 @@ const GuideLayout = ({ children }: { children: React.ReactNode }) => {
                   className={cn(
                     "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-300",
                     isOnline
-                      ? "bg-green-50 border-green-300 text-green-700 hover:bg-green-100"
-                      : "bg-gray-100 border-gray-300 text-gray-500 hover:bg-gray-200"
+                      ? "bg-emerald-500/15 border-emerald-500/35 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25"
+                      : "bg-muted border-border text-muted-foreground hover:bg-secondary"
                   )}
                 >
                   <span

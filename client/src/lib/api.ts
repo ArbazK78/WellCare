@@ -13,16 +13,20 @@ api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig): Promise<InternalAxiosRequestConfig> => {
     let token: string | null = null;
 
-    // Guide endpoints need guide_token:
+    // Keep the three authentication domains isolated. In particular, an
+    // existing customer session must never overwrite the admin bearer token.
+    const isAdminEndpoint = config.url?.startsWith('/admin');
     const isGuideEndpoint =
       config.url?.startsWith('/guides') ||
       config.url?.startsWith('/bookings/guide') ||
       (config.method === 'put' && /^\/bookings\/[^/]+\/status$/.test(config.url ?? '')) ||
       (config.method === 'post' && /^\/bookings\/[^/]+\/start-trip$/.test(config.url ?? ''));
 
-    token = isGuideEndpoint
-      ? localStorage.getItem('guide_token')
-      : localStorage.getItem('userToken');
+    token = isAdminEndpoint
+      ? localStorage.getItem('admin_token')
+      : isGuideEndpoint
+        ? localStorage.getItem('guide_token')
+        : localStorage.getItem('userToken');
 
     if (token) {
       try {
@@ -31,7 +35,9 @@ api.interceptors.request.use(
 
         if (isExpired) {
           // FC-1 fix: Redirect guide to guide login, customer to customer login
-          if (isGuideEndpoint) {
+          if (isAdminEndpoint) {
+            localStorage.removeItem('admin_token');
+          } else if (isGuideEndpoint) {
             logoutGuide();
           } else {
             logoutCustomer();

@@ -5,11 +5,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Copy, Loader2, ArrowRight } from "lucide-react";
-import { 
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
+import { AccessibleOtpInput } from "@/components/auth/AccessibleOtpInput";
 import { Label } from "@/components/ui/label";
 
 type PhoneVerificationFormProps = {
@@ -104,17 +100,17 @@ const PhoneVerificationForm = ({ phoneNumber, onBack, userData, mode = "login" }
 
   return (
     <div className="space-y-6">
-      <div className="bg-amber-50 p-3 rounded-md border border-amber-200 mb-4">
+      <div className="rounded-xl border border-[hsl(var(--warm)/.35)] bg-accent/60 p-4 mb-4">
         <div className="flex justify-between items-center">
           <div>
-            <h4 className="text-sm font-medium text-amber-800">Demo Mode: Your OTP is</h4>
-            <p className="text-amber-900 font-mono text-xl">{generatedOtp}</p>
+            <h4 className="text-sm font-medium text-accent-foreground">Demo Mode: Your OTP is</h4>
+            <p className="text-foreground font-mono text-xl">{generatedOtp}</p>
           </div>
           <Button 
             variant="outline" 
             size="sm" 
             onClick={copyOtpToClipboard}
-            className="text-amber-800 border-amber-300"
+            className="text-accent-foreground border-[hsl(var(--warm)/.45)]"
           >
             <Copy className="h-4 w-4 mr-1" /> Copy
           </Button>
@@ -123,22 +119,8 @@ const PhoneVerificationForm = ({ phoneNumber, onBack, userData, mode = "login" }
       
       <div className="space-y-4">
         <Label htmlFor="otp-input" className="text-center block">Enter verification code</Label>
-        <div className="flex justify-center py-2">
-          <InputOTP
-            id="otp-input"
-            maxLength={6}
-            onChange={setOtp}
-            className="gap-2"
-          >
-            <InputOTPGroup>
-              <InputOTPSlot key={0} index={0} />
-              <InputOTPSlot key={1} index={1} />
-              <InputOTPSlot key={2} index={2} />
-              <InputOTPSlot key={3} index={3} />
-              <InputOTPSlot key={4} index={4} />
-              <InputOTPSlot key={5} index={5} />
-            </InputOTPGroup>
-          </InputOTP>
+        <div className="py-2">
+          <AccessibleOtpInput value={otp} onChange={setOtp} disabled={isLoading} />
         </div>
         
         <div className="text-center">

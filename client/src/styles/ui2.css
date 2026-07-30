@@ -1,0 +1,100 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap");
+
+:root {
+  --background: 42 50% 97%;
+  --foreground: 166 35% 12%;
+  --card: 40 40% 99%;
+  --card-foreground: 166 35% 12%;
+  --popover: 40 40% 99%;
+  --popover-foreground: 166 35% 12%;
+  --primary: 164 52% 24%;
+  --primary-foreground: 42 60% 98%;
+  --secondary: 143 24% 90%;
+  --secondary-foreground: 163 43% 17%;
+  --muted: 40 20% 92%;
+  --muted-foreground: 166 12% 40%;
+  --accent: 24 72% 91%;
+  --accent-foreground: 18 48% 24%;
+  --warm: 25 72% 63%;
+  --destructive: 2 64% 48%;
+  --destructive-foreground: 42 60% 98%;
+  --border: 153 17% 84%;
+  --input: 153 17% 84%;
+  --ring: 164 52% 24%;
+  --radius: 1rem;
+}
+
+.dark {
+  --background: 165 31% 8%;
+  --foreground: 40 35% 94%;
+  --card: 164 27% 11%;
+  --card-foreground: 40 35% 94%;
+  --popover: 164 27% 11%;
+  --popover-foreground: 40 35% 94%;
+  --primary: 145 39% 66%;
+  --primary-foreground: 165 38% 10%;
+  --secondary: 161 20% 18%;
+  --secondary-foreground: 42 30% 92%;
+  --muted: 163 18% 16%;
+  --muted-foreground: 151 11% 66%;
+  --accent: 22 32% 21%;
+  --accent-foreground: 26 70% 82%;
+  --warm: 26 73% 67%;
+  --destructive: 3 57% 49%;
+  --destructive-foreground: 42 60% 98%;
+  --border: 160 16% 21%;
+  --input: 160 16% 24%;
+  --ring: 145 39% 66%;
+}
+
+html { scroll-behavior: smooth; }
+body { font-family: "DM Sans", "Segoe UI", system-ui, sans-serif; background-color: hsl(var(--background)); color: hsl(var(--foreground)); }
+h1, h2, h3, .font-display { font-family: "DM Sans", "Segoe UI", system-ui, sans-serif; }
+::selection { background: hsl(var(--primary) / .22); }
+.surface-card { border-radius: 1.5rem; border: 1px solid hsl(var(--border) / .7); background: hsl(var(--card) / .86); box-shadow: 0 24px 70px -42px rgba(17,56,45,.45); backdrop-filter: blur(12px); }
+.eyebrow { display: inline-flex; align-items: center; gap: .5rem; color: hsl(var(--primary)); font-size: .75rem; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; }
+.section-title { font-family: "DM Sans", "Segoe UI", system-ui, sans-serif; font-size: clamp(2.2rem,5vw,3.4rem); font-weight: 600; line-height: 1.08; letter-spacing: -.04em; }
+.section-copy { color: hsl(var(--muted-foreground)); font-size: clamp(1rem,2vw,1.125rem); line-height: 2; }
+.reveal-section { opacity: 0; transform: translateY(22px); transition: opacity 700ms cubic-bezier(.2,.8,.2,1), transform 700ms cubic-bezier(.2,.8,.2,1); }
+.reveal-section.is-visible { opacity: 1; transform: translateY(0); }
+.premium-grid { background-image: linear-gradient(hsl(var(--border)/.22) 1px,transparent 1px),linear-gradient(90deg,hsl(var(--border)/.22) 1px,transparent 1px); background-size: 44px 44px; mask-image: linear-gradient(to bottom,black,transparent 78%); }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  .reveal-section { opacity: 1; transform: none; }
+}
+
+/* Transactional portal refinements */
+[data-radix-popper-content-wrapper] { z-index: 80 !important; }
+[role="tablist"] { border-radius: .9rem !important; padding: .3rem !important; gap: .25rem; overflow: hidden; isolation: isolate; background: hsl(var(--secondary) / .72); box-shadow: inset 0 0 0 1px hsl(var(--border) / .45); }
+[role="tab"] { border-radius: .65rem !important; min-height: 2.55rem; padding-inline: 1.15rem; transition: all 220ms ease; }
+[role="tab"][data-state="active"] { background: hsl(var(--card)); color: hsl(var(--foreground)); box-shadow: 0 8px 24px -14px rgba(17,56,45,.5); }
+input:not([type="checkbox"]):not([type="radio"]), textarea, select { border-radius: .85rem; }
+table { border-collapse: separate; border-spacing: 0; }
+thead tr { background: hsl(var(--secondary) / .48); }
+th { color: hsl(var(--muted-foreground)); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; }
+tbody tr { transition: background-color 180ms ease; }
+tbody tr:hover { background: hsl(var(--secondary) / .28); }
+.bg-blue-600, .bg-blue-700 { background-color: hsl(var(--primary)) !important; }
+.text-blue-600, .text-blue-700, .text-blue-800 { color: hsl(var(--primary)) !important; }
+.border-blue-100, .border-blue-200, .border-blue-300 { border-color: hsl(var(--primary) / .25) !important; }
+.bg-blue-50, .bg-blue-50\/50 { background-color: hsl(var(--secondary) / .55) !important; }
+.from-blue-50 { --tw-gradient-from: hsl(var(--secondary) / .65) var(--tw-gradient-from-position) !important; }
+.to-white { --tw-gradient-to: hsl(var(--background)) var(--tw-gradient-to-position) !important; }
+@keyframes reassurance-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.reassurance-swap { animation: reassurance-enter 480ms cubic-bezier(.2,.8,.2,1); }
+
+/* Legacy transactional screens now inherit the shared light/dark tokens. */
+.dark .bg-white { background-color: hsl(var(--card)) !important; }
+.dark .bg-gray-50 { background-color: hsl(var(--background)) !important; }
+.dark .bg-gray-100 { background-color: hsl(var(--muted)) !important; }
+.dark .bg-gray-200 { background-color: hsl(var(--border)) !important; }
+.dark .text-gray-900, .dark .text-gray-800, .dark .text-gray-700 { color: hsl(var(--foreground)) !important; }
+.dark .text-gray-600, .dark .text-gray-500, .dark .text-gray-400 { color: hsl(var(--muted-foreground)) !important; }
+.dark .border-gray-100, .dark .border-gray-200, .dark .border-gray-300 { border-color: hsl(var(--border)) !important; }
+.dark .hover\:bg-gray-50:hover, .dark .hover\:bg-gray-100:hover, .dark .hover\:bg-gray-200:hover { background-color: hsl(var(--secondary)) !important; }
+.dark .has-\[\:checked\]\:bg-red-50:has(:checked) { background-color: hsl(var(--destructive) / .12) !important; }

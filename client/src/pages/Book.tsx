@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import "@/styles/ui2.css";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -17,7 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { MapPin, PhoneCall, Clock, Calendar, User, Mail, Navigation, Home, ChevronDown, CheckCircle2, Loader2 } from "lucide-react";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { useAuth } from "@/contexts/AuthContext";
-import Navbar from "@/components/Navbar";
+import Navbar from "@/components/AppNavbar";
 import { useBookings, BookingService } from "@/contexts/BookingContext";
 import { format } from "date-fns";
 import { useJsApiLoader } from "@react-google-maps/api";
@@ -46,19 +47,19 @@ const StepIndicator = ({ current, steps }: { current: number, steps: string[] })
             <div
               className={cn(
                 "w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors",
-                isComplete ? "bg-blue-600 text-white" :
-                isActive   ? "bg-blue-600 text-white ring-4 ring-blue-100" :
-                             "bg-gray-200 text-gray-500"
+                isComplete ? "bg-primary text-primary-foreground" :
+                isActive   ? "bg-primary text-primary-foreground ring-4 ring-primary/20" :
+                             "bg-muted text-muted-foreground border border-border"
               )}
             >
               {isComplete ? "✓" : stepNum}
             </div>
-            <span className={cn("text-xs mt-1 font-medium", isActive ? "text-blue-600" : "text-gray-400")}>
+            <span className={cn("text-xs mt-1 font-medium", isActive ? "text-primary" : "text-muted-foreground")}>
               {label}
             </span>
           </div>
           {idx < steps.length - 1 && (
-            <div className={cn("w-16 h-0.5 mb-4 mx-1 transition-colors", isComplete ? "bg-blue-600" : "bg-gray-200")} />
+            <div className={cn("w-16 h-0.5 mb-4 mx-1 transition-colors", isComplete ? "bg-primary" : "bg-border")} />
           )}
         </div>
       );
@@ -82,20 +83,20 @@ const VehicleCard = ({
     onClick={onSelect}
     className={cn(
       "flex-1 p-6 rounded-xl border-2 transition-all text-left cursor-pointer",
-      "hover:border-blue-400 hover:shadow-md",
+      "hover:border-primary/60 hover:shadow-md",
       selected
-        ? "border-blue-600 bg-blue-50 shadow-md"
-        : "border-gray-200 bg-white"
+        ? "border-primary bg-primary/10 shadow-md"
+        : "border-border bg-card"
     )}
   >
     <div className="text-5xl mb-3 text-center">{emoji}</div>
-    <p className={cn("text-lg font-bold text-center mb-1", selected ? "text-blue-700" : "text-gray-800")}>
+    <p className={cn("text-lg font-bold text-center mb-1", selected ? "text-primary" : "text-foreground")}>
       {label}
     </p>
-    <p className="text-xs text-gray-500 text-center leading-snug">{description}</p>
+    <p className="text-xs text-muted-foreground text-center leading-snug">{description}</p>
     {selected && (
       <div className="mt-3 flex justify-center">
-        <span className="text-xs bg-blue-600 text-white px-3 py-0.5 rounded-full font-medium">Selected</span>
+        <span className="text-xs bg-primary text-primary-foreground px-3 py-0.5 rounded-full font-medium">Selected</span>
       </div>
     )}
   </button>
@@ -355,7 +356,7 @@ const Book = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+    <div className="min-h-screen bg-background text-foreground">
       <Navbar />
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto">
@@ -428,7 +429,7 @@ const Book = () => {
             steps={bookingMode === 'now' ? ["Your Details", "Choose Vehicle"] : ["Your Details", "Choose Date", "Choose Vehicle"]} 
           />
 
-          <Card>
+          <Card className="surface-card">
             <CardHeader>
               <CardTitle className="text-xl">
                 {step === 1 ? "Your Details & Journey" : 
@@ -436,7 +437,7 @@ const Book = () => {
                  "Choose Your Vehicle"}
               </CardTitle>
               {step === (bookingMode === 'schedule' ? 3 : 2) && (
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                   Your guide will arrive in the selected vehicle type to pick you up.
                 </p>
               )}
@@ -684,7 +685,7 @@ const Book = () => {
                     </div>
 
                     <div>
-                      <p className="text-sm font-medium text-gray-700 mb-4">
+                      <p className="text-sm font-medium text-foreground/80 mb-4">
                         Your guide will arrive in this vehicle to pick you up at your specified location.
                       </p>
                       <div className="flex gap-4">
@@ -731,7 +732,7 @@ const Book = () => {
                       ) : fareEstimateError ? (
                         <p className="py-2 text-sm font-medium text-red-700">{fareEstimateError}</p>
                       ) : (
-                        <p className="py-2 text-sm text-gray-500">Select a vehicle to calculate your route and fare.</p>
+                        <p className="py-2 text-sm text-muted-foreground">Select a vehicle to calculate your route and fare.</p>
                       )}
                     </div>
                     <div className="flex gap-4 pt-2">

@@ -1,5 +1,4 @@
 import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
@@ -11,13 +10,15 @@ import GuideProtectedRoute from "@/components/GuideProtectedRoute";
 import AdminProtectedRoute from "@/components/AdminProtectedRoute";
 import GuideLayout from "@/components/GuideLayout";
 
-import Index from "./pages/Index";
+import Index from "./pages/IndexV2";
+import Blogs from "./pages/Blogs";
+import BlogArticle from "./pages/BlogArticle";
 import NotFound from "./pages/NotFound";
 import Book from "./pages/Book";
-import About from "./pages/About";
-import Guides from "./pages/Guides";
+import About from "./pages/AboutV2";
+import Guides from "./pages/GuidesV2";
 import Dashboard from "./pages/Dashboard";
-import PhoneVerification from "./pages/PhoneVerification";
+import PhoneVerification from "./pages/PhoneVerificationV2";
 import BookingConfirmationPage from "./pages/BookingConfirmationPage";
 import FindingGuide from "./pages/FindingGuide";
 
@@ -29,9 +30,12 @@ import GuidePendingApproval from "./pages/guide/GuidePendingApproval";
 import GuideRejected from "./pages/guide/GuideRejected";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminLogin from "./pages/admin/AdminLogin";
+import AdminLogin from "./pages/admin/AdminLoginV2";
 
 import { useAuth } from "@/contexts/AuthContext";
+import "@/i18n";
+import { ThemeProvider } from "next-themes";
+import "@/styles/ui2.css";
 
 const AppRoutes = () => {
   const { checkingAuth } = useAuth();
@@ -51,6 +55,8 @@ const AppRoutes = () => {
         <Route path="/" element={<Index />} />
         <Route path="/about" element={<About />} />
         <Route path="/guides" element={<Guides />} />
+        <Route path="/blogs" element={<Blogs />} />
+        <Route path="/blogs/:slug" element={<BlogArticle />} />
         <Route path="/verify-phone" element={<PhoneVerification />} />
         <Route path="/book" element={
           <ProtectedRoute><Book /></ProtectedRoute>
@@ -105,13 +111,13 @@ const AppRoutes = () => {
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
         <GuideAuthProvider>
           <BookingProvider>
             <Toaster />
-            <Sonner />
             <BrowserRouter>
               <AppRoutes />
             </BrowserRouter>
@@ -120,6 +126,7 @@ const App = () => (
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;

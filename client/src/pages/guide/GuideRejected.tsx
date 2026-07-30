@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import "@/styles/ui2.css";
 import { useNavigate } from "react-router-dom";
 import { useGuideAuth } from "@/contexts/GuideAuthContext";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +25,7 @@ useEffect(() => {
 }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto">
           <Card>

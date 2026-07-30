@@ -200,10 +200,10 @@ const GuideLogin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto">
-          <Card>
+          <Card className="surface-card">
             <CardHeader>
               <CardTitle>Guide Login</CardTitle>
               <CardDescription>

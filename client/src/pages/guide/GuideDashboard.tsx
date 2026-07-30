@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import "@/styles/ui2.css";
 import { useGuideAuth } from "@/contexts/GuideAuthContext";
 import { Booking } from "@/contexts/BookingContext";
 import { useToast } from "@/hooks/use-toast";
@@ -433,7 +434,7 @@ const GuideDashboard = () => {
 
   if (activeBooking) {
     return (
-      <div className="min-h-screen bg-gray-50 pb-8 flex flex-col">
+      <div className="min-h-screen bg-background text-foreground pb-8 flex flex-col">
         {/* Minimal header for active ride */}
         <div className="bg-white border-b border-gray-100 px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -458,10 +459,10 @@ const GuideDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="container mx-auto px-4 py-8">
         {currentGuide && (
-          <Card className="mb-8">
+          <Card className="mb-8 surface-card">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
@@ -530,7 +531,7 @@ const GuideDashboard = () => {
             {loading ? (
               <div className="text-center py-8">Loading...</div>
             ) : acceptedBookings.length === 0 ? (
-              <Card>
+              <Card className="surface-card">
                 <CardHeader>
                   <CardTitle>No Active Bookings</CardTitle>
                   <CardDescription>
@@ -547,7 +548,7 @@ const GuideDashboard = () => {
           
           {/* ── Scheduled — reserved for future pre-planned bookings ─────────── */}
           <TabsContent value="scheduled">
-            <Card>
+            <Card className="surface-card">
               <CardHeader>
                 <CardTitle>Scheduled Bookings</CardTitle>
                 <CardDescription>
@@ -562,7 +563,7 @@ const GuideDashboard = () => {
             {loading ? (
               <div className="text-center py-8">Loading...</div>
             ) : completedBookings.length === 0 ? (
-              <Card>
+              <Card className="surface-card">
                 <CardHeader>
                   <CardTitle>No Completed Bookings</CardTitle>
                   <CardDescription>

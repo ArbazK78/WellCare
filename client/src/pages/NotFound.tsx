@@ -1,4 +1,5 @@
 import { useLocation } from "react-router-dom";
+import "@/styles/ui2.css";
 import { useEffect } from "react";
 
 const NotFound = () => {
