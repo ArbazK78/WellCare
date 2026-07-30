@@ -49,6 +49,12 @@ router.get('/guide/pending', verifyGuideToken, getGuidePendingBookings); // Get 
 router.get('/guide/accepted', verifyGuideToken, getGuideAcceptedBookings); // Get guide's accepted bookings
 router.get('/guide/completed', verifyGuideToken, getGuideCompletedBookings); // Get guide's completed bookings
 router.get('/guide/recent-cancellations', verifyGuideToken, getGuideRecentCancellations); // Poll for recent cancellations
+// Scheduled reservation marketplace (Cab guides only)
+router.get('/guide/reservations/opportunities', verifyGuideToken, bookingController.getGuideReservationOpportunities);
+router.get('/guide/reservations/schedule', verifyGuideToken, bookingController.getGuideSchedule);
+router.put('/guide/reservations/:bookingId/claim', verifyGuideToken, bookingController.claimReservation);
+router.put('/guide/reservations/:bookingId/readiness', verifyGuideToken, bookingController.confirmReservationReadiness);
+router.put('/guide/reservations/:bookingId/release', verifyGuideToken, bookingController.releaseReservation);
 
 // PUT /api/bookings/:bookingId/cancel - Cancel a specific booking
 router.put("/:bookingId/cancel", verifyUserToken, bookingController.cancelBooking); // 👈 Soft delete

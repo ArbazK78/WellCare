@@ -6,13 +6,17 @@ export interface Coordinates {
   lng: number;
 }
 
-export function useGeolocation() {
+export function useGeolocation(enabled = true) {
   const [location, setLocation] = useState<Coordinates | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     if (!('geolocation' in navigator)) {
       const msg = 'Geolocation is not supported by your browser';
       setError(msg);
@@ -45,7 +49,7 @@ export function useGeolocation() {
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, []);
+  }, [enabled]);
 
   return { location, error, loading };
 }

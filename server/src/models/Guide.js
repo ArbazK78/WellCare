@@ -36,7 +36,11 @@ const guideSchema = new mongoose.Schema({
   // Guides must explicitly toggle online; backend records the state
   // so admin can see active guides and future booking routing can target online-only guides
   isOnline: { type: Boolean, default: false },
-  lastOnlineAt: { type: Date },
+  lastOnlineAt: { type: Date },  currentLocation: {
+    lat: { type: Number },
+    lng: { type: Number },
+    updatedAt: { type: Date },
+  },
   registeredAt: { type: Date, default: Date.now }
 
 });

@@ -31,6 +31,7 @@ import {
 import { SchedulePicker, ScheduleData } from "@/components/SchedulePicker";
 import { cn } from "@/lib/utils";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import api from "@/lib/api";
 import axios from "axios";
 
@@ -103,47 +104,6 @@ const VehicleCard = ({
 );
 
 // ── Scheduled Booking Success View ──
-const ScheduledSuccessView = () => {
-  const navigate = useNavigate();
-  const [countdown, setCountdown] = useState(10);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          navigate("/dashboard");
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [navigate]);
-
-  return (
-    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-      <div className="h-20 w-20 bg-green-100 rounded-full flex items-center justify-center mb-6 mx-auto">
-        <CheckCircle2 className="h-10 w-10 text-green-600" />
-      </div>
-      <h2 className="text-3xl font-bold text-gray-900 mb-4">Booking Scheduled!</h2>
-      <p className="text-lg text-gray-600 mb-8 max-w-md mx-auto">
-        Your scheduled booking has been created successfully. We will notify you with guide details before the pickup time.
-      </p>
-      
-      <div className="bg-blue-50 text-blue-800 px-6 py-3 rounded-full font-medium mb-8 flex items-center gap-2 mx-auto w-fit">
-        <Clock className="h-5 w-5" />
-        Redirecting to dashboard in {countdown}s...
-      </div>
-
-      <Button type="button" onClick={() => navigate("/dashboard")} size="lg" className="w-full sm:w-auto mx-auto">
-        Go to Dashboard
-      </Button>
-    </div>
-  );
-};
-
-// ─── Main component ───────────────────────────────────────────────────────────
 type FareEstimate = {
   distanceKm: number;
   durationMin: number;
@@ -184,7 +144,7 @@ const Book = () => {
   const [bookingMode, setBookingMode] = useState<"now" | "schedule">("now");
   const [tempBookingMode, setTempBookingMode] = useState<"now" | "schedule">("now");
   const [modePopoverOpen, setModePopoverOpen] = useState(false);
-  const [isScheduledSuccess, setIsScheduledSuccess] = useState(false);
+  const [showLiveConversion, setShowLiveConversion] = useState(false);
   const [fareEstimate, setFareEstimate] = useState<FareEstimate | null>(null);
   const [isEstimatingFare, setIsEstimatingFare] = useState(false);
   const [fareEstimateError, setFareEstimateError] = useState<string | null>(null);
@@ -309,6 +269,29 @@ const Book = () => {
     formData.dropBack,
     step1Valid,
   ]);
+  const getScheduledPickup = () => {
+    if (!scheduleData.pickupDate || !scheduleData.pickupTime) return null;
+    const [hours, minutes] = scheduleData.pickupTime.split(":").map(Number);
+    const pickup = new Date(scheduleData.pickupDate);
+    pickup.setHours(hours, minutes, 0, 0);
+    return pickup;
+  };
+
+  const continueFromSchedule = () => {
+    const pickup = getScheduledPickup();
+    if (!pickup) return;
+    const leadTime = pickup.getTime() - Date.now();
+    if (leadTime < 30 * 60 * 1000) {
+      setShowLiveConversion(true);
+      return;
+    }
+    if (leadTime > 90 * 24 * 60 * 60 * 1000) {
+      toast({ title: "Choose an earlier date", description: "Scheduled assistance can be reserved up to 90 days in advance.", variant: "destructive" });
+      return;
+    }
+    setFormData((current) => ({ ...current, vehicleType: "cab" }));
+    setStep(3);
+  };
   // Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -338,7 +321,8 @@ const Book = () => {
       if (response.status === 201) {
         await refreshBookings();
         if (bookingMode === 'schedule') {
-          setIsScheduledSuccess(true);
+          toast({ title: 'Reservation created', description: 'Your request is now visible to eligible Cab guides.' });
+          navigate('/dashboard', { replace: true });
         } else {
           navigate(`/finding-guide/${response.data._id}`);
         }
@@ -356,14 +340,12 @@ const Book = () => {
   };
 
   return (
+    <>
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto">
-          {isScheduledSuccess ? (
-            <ScheduledSuccessView />
-          ) : (
-            <>
+          <>
               <h1 className="text-3xl font-bold text-center mb-2">Book a Guide</h1>
               <p className="text-center text-gray-500 mb-6">Hospital assistance, made simple</p>
 
@@ -654,7 +636,7 @@ const Book = () => {
                         type="button" 
                         className="flex-1" 
                         disabled={!scheduleData.pickupDate || !scheduleData.pickupTime || !scheduleData.dropoffDate || !scheduleData.dropoffTime}
-                        onClick={() => setStep(3)}
+                        onClick={continueFromSchedule}
                       >
                         Next
                       </Button>
@@ -667,12 +649,12 @@ const Book = () => {
                   <div className="space-y-6">
 
                     {/* Journey summary */}
-                    <div className="p-4 bg-gray-50 rounded-lg border text-sm space-y-1.5">
-                      <div className="flex items-center gap-2 text-gray-600">
+                    <div className="rounded-lg border border-border bg-secondary/35 p-4 text-sm space-y-1.5">
+                      <div className="flex items-center gap-2 text-muted-foreground">
                         <MapPin className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                         <span className="truncate"><span className="font-medium">Pickup:</span> {typeof formData.pickupLocation === 'string' ? formData.pickupLocation : formData.pickupLocation?.name || ''}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-gray-600">
+                      <div className="flex items-center gap-2 text-muted-foreground">
                         <Navigation className="h-3.5 w-3.5 text-green-500 shrink-0" />
                         <span className="truncate"><span className="font-medium">Destination:</span> {typeof formData.destinationAddress === 'string' ? formData.destinationAddress : formData.destinationAddress?.name || ''}</span>
                       </div>
@@ -688,15 +670,23 @@ const Book = () => {
                       <p className="text-sm font-medium text-foreground/80 mb-4">
                         Your guide will arrive in this vehicle to pick you up at your specified location.
                       </p>
-                      <div className="flex gap-4">
-                        <VehicleCard
-                          type="scooter"
-                          label="Scooter"
-                          description="Compact & quick. Best for solo travel through busy areas."
-                          emoji="🛵"
-                          selected={formData.vehicleType === "scooter"}
-                          onSelect={() => handleChange("vehicleType", "scooter")}
-                        />
+                      {bookingMode === "schedule" && (
+                        <div className="mb-4 rounded-xl border border-primary/20 bg-primary/10 p-4 text-sm text-foreground">
+                          Scheduled assistance is Cab-only so the guide can accompany your loved one safely and reliably.
+                        </div>
+                      )}
+                      <div className={cn("flex gap-4", bookingMode === "schedule" && "mx-auto max-w-md")}>
+                        {bookingMode === "now" && (
+                          <VehicleCard
+                            type="scooter"
+                            label="Scooter"
+                            description="Compact & quick. Best for solo travel through busy areas."
+                            emoji="🛵"
+                            selected={formData.vehicleType === "scooter"}
+                            onSelect={() => handleChange("vehicleType", "scooter")}
+                          />
+                        )}
+
                         <VehicleCard
                           type="cab"
                           label="Cab"
@@ -708,7 +698,7 @@ const Book = () => {
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-blue-100 bg-blue-50 p-4" aria-live="polite">
+                    <div className="rounded-xl border border-primary/20 bg-primary/10 p-4" aria-live="polite">
                       {isEstimatingFare ? (
                         <div className="flex items-center justify-center gap-2 py-3 text-sm font-medium text-blue-700">
                           <Loader2 className="h-4 w-4 animate-spin" /> Calculating the driving route…
@@ -718,7 +708,7 @@ const Book = () => {
                           <div className="flex items-start justify-between gap-4">
                             <div>
                               <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Estimated route fare</p>
-                              <p className="mt-1 text-sm text-gray-600">
+                              <p className="mt-1 text-sm text-muted-foreground">
                                 {fareEstimate.distanceKm.toFixed(1)} km · approximately {fareEstimate.durationMin} min
                                 {formData.dropBack ? " round trip" : ""}
                               </p>
@@ -754,10 +744,30 @@ const Book = () => {
             </CardContent>
           </Card>
             </>
-          )}
         </div>
       </div>
     </div>
+      <AlertDialog open={showLiveConversion} onOpenChange={setShowLiveConversion}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>This pickup is less than 30 minutes away</AlertDialogTitle>
+            <AlertDialogDescription>
+              Scheduled assistance needs at least 30 minutes of notice. Would you like to continue as a NOW booking instead?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Not now</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              setBookingMode("now");
+              setTempBookingMode("now");
+              setFormData((current) => ({ ...current, vehicleType: "" }));
+              setStep(2);
+              toast({ title: "Switched to NOW", description: "Choose how your guide should arrive, then confirm the live request." });
+            }}>Yes, request now</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };
 

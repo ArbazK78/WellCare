@@ -39,6 +39,7 @@ const formSchema = z.object({
   bio: z.string().optional(),
   languages: z.array(z.string()).default([]),
   specialties: z.array(z.string()).default([]),
+  vehicleType: z.array(z.enum(["scooter", "cab"])).default([]),
   currentPassword: z.string().optional(),
   newPassword: z.string().optional(),
   confirmPassword: z.string().optional(),
@@ -83,6 +84,7 @@ const GuideEditProfile = () => {
     bio: currentGuide?.bio || "",
     languages: Array.isArray(currentGuide?.languages) ? [...currentGuide.languages] : [],
     specialties: Array.isArray(currentGuide?.specialties) ? [...currentGuide.specialties] : [],
+    vehicleType: Array.isArray(currentGuide?.vehicleType) ? [...currentGuide.vehicleType] : [],
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
@@ -133,6 +135,7 @@ const onSubmit = async (values: FormValues) => {
     // Ensure arrays are properly formatted
     updateData.languages = Array.isArray(updateData.languages) ? updateData.languages : [];
     updateData.specialties = Array.isArray(updateData.specialties) ? updateData.specialties : [];
+    updateData.vehicleType = Array.isArray(updateData.vehicleType) ? updateData.vehicleType : [];
 
     // 🔥 Key Change: Use context method instead of direct API call
     await updateGuideProfile(updateData);
@@ -317,6 +320,28 @@ const onSubmit = async (values: FormValues) => {
                     </div>
                   </div>
 
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-medium">Vehicle capabilities</h3>
+                    <FormField
+                      control={form.control}
+                      name="vehicleType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Vehicles you can provide</FormLabel>
+                          <FormControl>
+                            <MultiSelect
+                              options={["scooter", "cab"]}
+                              selected={field.value || []}
+                              onChange={field.onChange}
+                              placeholder="Select Scooter, Cab, or both"
+                            />
+                          </FormControl>
+                          <FormDescription>Only guides with Cab selected can view and claim scheduled reservations.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                   {/* Password Change Section */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium">Change Password (Optional)</h3>

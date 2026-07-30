@@ -97,20 +97,14 @@ mongoose.connect(process.env.MONGO_URI, {
       );
     }, 10000);
 
-    // Release scheduled bookings into the normal guide waterfall 30 minutes
-    // before pickup. A durable database claim prevents duplicate dispatch.
-    const activateScheduledBookings = () => {
-      scheduledBookingService.activateDueBookings().catch((error) =>
-        console.error('Error activating scheduled bookings:', error)
+    // Advance reservations through readiness and Cab-only live fallback.
+    const processReservations = () => {
+      scheduledBookingService.processReservations().catch((error) =>
+        console.error('Error processing scheduled reservations:', error)
       );
     };
-    scheduledBookingService.backfillScheduledBookingTimes()
-      .then((updated) => {
-        if (updated > 0) console.log(`Prepared ${updated} legacy scheduled booking(s)`);
-        activateScheduledBookings();
-      })
-      .catch((error) => console.error('Error preparing scheduled bookings:', error));
-    setInterval(activateScheduledBookings, 30000);
+    processReservations();
+    setInterval(processReservations, 30000);
 
     app.listen(PORT, () => {
       console.log(`🚀 Server running at http://localhost:${PORT}`);

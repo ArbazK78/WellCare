@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useGuideAuth } from "@/contexts/GuideAuthContext";
 import { useBookingNotifications } from "@/hooks/useBookingNotifications";
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { User, LogOut, LayoutDashboard, Wifi, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useGeolocation } from "@/hooks/useGeolocation";
 import IncomingBookingPopup from "@/components/IncomingBookingPopup";
 import CancelledBookingPopup from "@/components/CancelledBookingPopup";
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +37,17 @@ const GuideLayout = ({ children }: { children: React.ReactNode }) => {
   const { incomingBooking, dismissIncoming, cancelledBooking, dismissCancelled } = useBookingNotifications(isOnline && isAuthenticated);
   const navigate  = useNavigate();
   const { toast } = useToast();
+  const { location: liveLocation } = useGeolocation(isAuthenticated && isOnline);
+  const lastLocationSentAt = useRef(0);
+
+  useEffect(() => {
+    if (!isAuthenticated || !isOnline || !liveLocation) return;
+    if (Date.now() - lastLocationSentAt.current < 30_000) return;
+    lastLocationSentAt.current = Date.now();
+    api.put('/guides/location', liveLocation).catch(() => {
+      // A later GPS update will retry; booking UI should not be interrupted.
+    });
+  }, [isAuthenticated, isOnline, liveLocation]);
 
   // ── Conflict rule: log out guide if going online as customer ──────────────
   // NOTE: We do NOT clear userToken here. The guide portal never reads

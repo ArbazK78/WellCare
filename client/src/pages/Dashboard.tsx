@@ -93,11 +93,11 @@ const Dashboard = () => {
   const activeBooking = localBookings.find(
     (b: any) =>
       ["accepted", "arrived", "in_progress"].includes(b.status) ||
-      (b.status === "pending" && (b.bookingMode !== "schedule" || Boolean(b.dispatchStartedAt)))
+      (b.status === "pending" && b.bookingMode !== "schedule")
   );
 
   useEffect(() => {
-    if (activeBooking && activeBooking.status === "pending") {
+    if (activeBooking && activeBooking.status === "pending" && activeBooking.bookingMode !== "schedule") {
       navigate(`/finding-guide/${activeBooking._id}`, { replace: true });
     }
   }, [activeBooking, navigate]);
@@ -217,35 +217,18 @@ const Dashboard = () => {
   }, []);
 
   const { currentBooking, scheduledBookings } = useMemo(() => {
-    const upcoming = localBookings.filter(booking =>
-      booking.status === "pending" || booking.status === "accepted" || booking.status === "arrived" || booking.status === "in_progress"
+    const upcoming = localBookings.filter((booking) =>
+      ["pending", "accepted", "arrived", "in_progress"].includes(booking.status)
     );
-
-
-
-    const sortedUpcoming = [...upcoming].sort((a, b) => {
-      return parseBookingDateTime(a).getTime() - parseBookingDateTime(b).getTime();
-    });
-
-    const todayStr = format(new Date(), "yyyy-MM-dd");
-    let currentBooking = null;
-    let scheduledBookings = [];
-
-    const earliestTodayIndex = sortedUpcoming.findIndex(b => b.date && b.date.startsWith(todayStr));
-
-    if (earliestTodayIndex !== -1) {
-      currentBooking = sortedUpcoming[earliestTodayIndex];
-      scheduledBookings = [
-        ...sortedUpcoming.slice(0, earliestTodayIndex),
-        ...sortedUpcoming.slice(earliestTodayIndex + 1)
-      ];
-    } else {
-      scheduledBookings = sortedUpcoming;
-    }
-
+    const byPickup = (a: any, b: any) => parseBookingDateTime(a).getTime() - parseBookingDateTime(b).getTime();
+    const currentBooking = upcoming
+      .filter((booking) => booking.bookingMode !== "schedule")
+      .sort(byPickup)[0] || null;
+    const scheduledBookings = upcoming
+      .filter((booking) => booking.bookingMode === "schedule")
+      .sort(byPickup);
     return { currentBooking, scheduledBookings };
   }, [localBookings]);
-
   const completedBookings = localBookings.filter(booking => booking.status === "completed");
 
   const originalProfile = {
@@ -341,75 +324,90 @@ const Dashboard = () => {
             <div className="w-full">
               <h1 className="text-3xl font-bold mb-6">Scheduled Booking Details</h1>
               
-              <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-5 mb-8 flex items-start gap-4">
-                <AlertCircle className="w-6 h-6 text-blue-600 shrink-0 mt-0.5" />
-                <div>
-                  <h3 className="font-semibold text-blue-900 mb-1">Guide Assignment Pending</h3>
-                  <p className="text-blue-800/80">
-                    We will share your guide details by <strong>{(() => {
-                      const dt = parseBookingDateTime(selectedScheduledBooking);
-                      const dispatchTime = subMinutes(dt, 30);
-                      return format(dispatchTime, "h:mm a, MMM d");
-                    })()}</strong>. You will receive a notification once a guide is assigned.
-                  </p>
+              {selectedScheduledBooking.guide ? (
+                <div className="mb-8 flex items-center gap-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-5">
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full bg-secondary ring-4 ring-background">
+                    {selectedScheduledBooking.guide.image ? (
+                      <img src={selectedScheduledBooking.guide.image} alt={selectedScheduledBooking.guide.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xl font-bold text-primary">{selectedScheduledBooking.guide.name?.charAt(0)}</div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[.14em] text-emerald-700 dark:text-emerald-300">Your guide is reserved</p>
+                    <h2 className="mt-1 text-2xl font-bold text-foreground">{selectedScheduledBooking.guide.name}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">We will reconfirm readiness closer to your pickup time.</p>
+                  </div>
                 </div>
-              </div>
-
+              ) : (
+                <div className="mb-8 flex items-start gap-4 rounded-2xl border border-primary/25 bg-primary/10 p-5 text-foreground">
+                  <AlertCircle className="mt-0.5 h-6 w-6 shrink-0 text-primary" />
+                  <div>
+                    <h3 className="mb-1 font-semibold text-foreground">Guide assignment pending</h3>
+                    <p className="text-muted-foreground">
+                      Cab guides can review this request now. We will confirm fulfilment no later than <strong className="text-foreground">{(() => {
+                        const dt = parseBookingDateTime(selectedScheduledBooking);
+                        return format(subMinutes(dt, 10), "h:mm a, MMM d");
+                      })()}</strong>.
+                    </p>
+                  </div>
+                </div>
+              )}
               <Card className="mb-8 surface-card overflow-hidden">
                 <CardHeader className="bg-secondary/35 border-b pb-4">
                   <div className="flex justify-between items-center">
                     <CardTitle className="text-lg flex items-center gap-2">
-                      <Calendar className="w-5 h-5 text-gray-500" />
+                      <Calendar className="w-5 h-5 text-muted-foreground" />
                       {formatBookingDate(selectedScheduledBooking.date)} at {formatBookingTime(selectedScheduledBooking.time)}
                     </CardTitle>
-                    <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
+                    <span className="bg-primary/15 text-primary px-3 py-1 rounded-full text-sm font-semibold">
                       Scheduled
                     </span>
                   </div>
                 </CardHeader>
                 <CardContent className="p-6 space-y-6">
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                       {selectedScheduledBooking.vehicleType === "scooter" ? "🛵" : "🚖"}
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Vehicle</p>
-                      <p className="font-medium text-gray-900 capitalize">{selectedScheduledBooking.vehicleType}</p>
+                      <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide mb-1">Vehicle</p>
+                      <p className="font-medium text-foreground capitalize">{selectedScheduledBooking.vehicleType}</p>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-4 relative">
-                    <div className="absolute left-2 top-3 bottom-3 w-0.5 bg-gray-200"></div>
-                    <div className="relative z-10 w-4 h-4 rounded-full bg-blue-500 ring-4 ring-white mt-1 shrink-0"></div>
+                    <div className="absolute left-2 top-3 bottom-3 w-0.5 bg-border"></div>
+                    <div className="relative z-10 w-4 h-4 rounded-full bg-blue-500 ring-4 ring-background mt-1 shrink-0"></div>
                     <div>
-                      <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Pick-up</p>
-                      <p className="font-semibold text-gray-900">{parseLocation(selectedScheduledBooking.pickupLocation).name}</p>
-                      <p className="text-sm text-gray-500 mt-0.5">{parseLocation(selectedScheduledBooking.pickupLocation).address}</p>
+                      <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide mb-1">Pick-up</p>
+                      <p className="font-semibold text-foreground">{parseLocation(selectedScheduledBooking.pickupLocation).name}</p>
+                      <p className="text-sm text-muted-foreground mt-0.5">{parseLocation(selectedScheduledBooking.pickupLocation).address}</p>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-4 relative">
-                    <div className="relative z-10 w-4 h-4 rounded-full bg-green-500 ring-4 ring-white mt-1 shrink-0"></div>
+                    <div className="relative z-10 w-4 h-4 rounded-full bg-green-500 ring-4 ring-background mt-1 shrink-0"></div>
                     <div>
-                      <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Drop-off</p>
-                      <p className="font-semibold text-gray-900">{parseLocation(selectedScheduledBooking.destinationAddress).name}</p>
-                      <p className="text-sm text-gray-500 mt-0.5">{parseLocation(selectedScheduledBooking.destinationAddress).address}</p>
+                      <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide mb-1">Drop-off</p>
+                      <p className="font-semibold text-foreground">{parseLocation(selectedScheduledBooking.destinationAddress).name}</p>
+                      <p className="text-sm text-muted-foreground mt-0.5">{parseLocation(selectedScheduledBooking.destinationAddress).address}</p>
                     </div>
                   </div>
 
                   {selectedScheduledBooking.totalFare !== undefined && (
                     <div className="grid grid-cols-3 gap-4 border-t pt-4">
                       <div>
-                        <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Distance</p>
-                        <p className="font-medium text-gray-900">{selectedScheduledBooking.distanceKm?.toFixed(1) || "—"} km</p>
+                        <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide mb-1">Distance</p>
+                        <p className="font-medium text-foreground">{selectedScheduledBooking.distanceKm?.toFixed(1) || "—"} km</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Drive Time</p>
-                        <p className="font-medium text-gray-900">~{selectedScheduledBooking.durationMin || "—"} min</p>
+                        <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide mb-1">Drive Time</p>
+                        <p className="font-medium text-foreground">~{selectedScheduledBooking.durationMin || "—"} min</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Estimated Fare</p>
-                        <p className="font-bold text-blue-700">₹{selectedScheduledBooking.totalFare}</p>
+                        <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide mb-1">Estimated Fare</p>
+                        <p className="font-bold text-primary">₹{selectedScheduledBooking.totalFare}</p>
                       </div>
                     </div>
                   )}
@@ -418,14 +416,14 @@ const Dashboard = () => {
                     <div className="pt-4 border-t mt-2 grid grid-cols-2 gap-4">
                       {selectedScheduledBooking.waitingHours > 0 && (
                         <div>
-                          <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Waiting Time</p>
-                          <p className="font-medium text-gray-900">{selectedScheduledBooking.waitingHours} Hour(s)</p>
+                          <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide mb-1">Waiting Time</p>
+                          <p className="font-medium text-foreground">{selectedScheduledBooking.waitingHours} Hour(s)</p>
                         </div>
                       )}
                       {selectedScheduledBooking.dropBack && (
                         <div>
-                          <p className="text-sm text-gray-500 font-medium uppercase tracking-wide mb-1">Return Trip</p>
-                          <p className="font-medium text-gray-900">Requested</p>
+                          <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide mb-1">Return Trip</p>
+                          <p className="font-medium text-foreground">Requested</p>
                         </div>
                       )}
                     </div>
@@ -499,7 +497,7 @@ const Dashboard = () => {
                                         <User className="h-6 w-6 text-blue-400" />
                                       </div>
                                       <div>
-                                        <h3 className="font-medium text-gray-500">Awaiting Guide</h3>
+                                        <h3 className="font-medium text-muted-foreground">Awaiting Guide</h3>
                                         <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
                                           Pending
                                         </span>
@@ -521,31 +519,31 @@ const Dashboard = () => {
                                   <div className="flex items-start">
                                     <div className="w-2 h-2 rounded-full bg-blue-600 mt-1.5 mr-3 shrink-0" />
                                     <div>
-                                      <p className="font-semibold text-gray-900 text-sm">{parseLocation(booking.pickupLocation || booking.location).name}</p>
+                                      <p className="font-semibold text-foreground text-sm">{parseLocation(booking.pickupLocation || booking.location).name}</p>
                                       {parseLocation(booking.pickupLocation || booking.location).address && (
-                                        <p className="text-xs text-gray-500">{parseLocation(booking.pickupLocation || booking.location).address}</p>
+                                        <p className="text-xs text-muted-foreground">{parseLocation(booking.pickupLocation || booking.location).address}</p>
                                       )}
                                     </div>
                                   </div>
-                                  <div className="w-0.5 h-4 bg-gray-200 ml-[3px] my-0.5" />
+                                  <div className="w-0.5 h-4 bg-border ml-[3px] my-0.5" />
                                   <div className="flex items-start">
                                     <div className="w-2 h-2 rounded-sm bg-green-600 mt-1.5 mr-3 shrink-0" />
                                     <div>
-                                      <p className="font-semibold text-gray-900 text-sm">{parseLocation(booking.destinationAddress).name}</p>
+                                      <p className="font-semibold text-foreground text-sm">{parseLocation(booking.destinationAddress).name}</p>
                                       {parseLocation(booking.destinationAddress).address && (
-                                        <p className="text-xs text-gray-500">{parseLocation(booking.destinationAddress).address}</p>
+                                        <p className="text-xs text-muted-foreground">{parseLocation(booking.destinationAddress).address}</p>
                                       )}
                                     </div>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {booking.vehicleType && (
-                                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium">
+                                    <span className="text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded-full font-medium">
                                       {booking.vehicleType === "scooter" ? "🛵 Scooter" : "🚖 Cab"}
                                     </span>
                                   )}
                                   {booking.dropBack && (
-                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                                    <span className="text-xs bg-blue-100 text-primary px-2 py-0.5 rounded-full font-medium">
                                       🏠 Drop-back included
                                     </span>
                                   )}
@@ -562,7 +560,7 @@ const Dashboard = () => {
                                   {user?.safetyPin && (
                                     <div className="w-full bg-blue-50 border border-blue-100 rounded-lg p-3 text-center">
                                       <p className="text-xs font-semibold text-blue-800 uppercase tracking-wider mb-1">Safety PIN</p>
-                                      <p className="text-xl font-bold text-blue-700 tracking-[0.25em]">{user.safetyPin}</p>
+                                      <p className="text-xl font-bold text-primary tracking-[0.25em]">{user.safetyPin}</p>
                                     </div>
                                   )}
                                   <div className="w-full space-y-2">
@@ -601,7 +599,7 @@ const Dashboard = () => {
                   ) : (
                     <Card className="surface-card">
                       <CardContent className="p-6 text-center">
-                        <p className="text-gray-500 mb-4">You don't have any upcoming bookings</p>
+                        <p className="text-muted-foreground mb-4">You don't have any upcoming bookings</p>
                         <Button asChild>
                           <Link to="/book">Book a Guide</Link>
                         </Button>
@@ -622,39 +620,62 @@ const Dashboard = () => {
                             <CardContent className="p-6">
                               <div className="flex flex-col md:flex-row justify-between items-center">
                                 <div className="space-y-2">
-                                  <div className="flex items-center text-gray-500 text-sm">
+                                  <div className="flex items-center text-muted-foreground text-sm">
                                     <Calendar className="w-4 h-4 mr-2" />
                                     {format(new Date(booking.date), "MMM d, yyyy")} at {format(parseISO(`1970-01-01T${booking.time}`), "h:mm a")}
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {!booking.guide?.name && (
+                                    <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                                      {{
+                                        open: "Finding an advance guide",
+                                        claimed: "Guide reserved",
+                                        readiness_pending: "Awaiting guide readiness",
+                                        ready: "Guide ready",
+                                        fallback_dispatching: "Finding a backup guide",
+                                        fulfilled: "Guide confirmed",
+                                        unfulfilled: "Could not fulfil",
+                                      }[booking.reservationStatus as string] || "Scheduled"}
+                                    </span>
+                                    )}
+                                    {booking.guide?.name && (
+                                      <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2">
+                                        <div className="h-10 w-10 overflow-hidden rounded-full bg-background">
+                                          {booking.guide.image ? <img src={booking.guide.image} alt={booking.guide.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center font-bold text-primary">{booking.guide.name.charAt(0)}</div>}
+                                        </div>
+                                        <div><p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Guide reserved</p><p className="font-semibold text-foreground">{booking.guide.name}</p></div>
+                                      </div>
+                                    )}
                                   </div>
                                   <div className="flex flex-col flex-1 pl-1 mt-2">
                                     <div className="flex items-start">
                                       <div className="w-2 h-2 rounded-full bg-blue-600 mt-1.5 mr-3 shrink-0" />
                                       <div>
-                                        <p className="font-semibold text-gray-900 text-sm">{parseLocation(booking.pickupLocation || booking.location).name}</p>
+                                        <p className="font-semibold text-foreground text-sm">{parseLocation(booking.pickupLocation || booking.location).name}</p>
                                         {parseLocation(booking.pickupLocation || booking.location).address && (
-                                          <p className="text-xs text-gray-500">{parseLocation(booking.pickupLocation || booking.location).address}</p>
+                                          <p className="text-xs text-muted-foreground">{parseLocation(booking.pickupLocation || booking.location).address}</p>
                                         )}
                                       </div>
                                     </div>
-                                    <div className="w-0.5 h-4 bg-gray-200 ml-[3px] my-0.5" />
+                                    <div className="w-0.5 h-4 bg-border ml-[3px] my-0.5" />
                                     <div className="flex items-start">
                                       <div className="w-2 h-2 rounded-sm bg-green-600 mt-1.5 mr-3 shrink-0" />
                                       <div>
-                                        <p className="font-semibold text-gray-900 text-sm">{parseLocation(booking.destinationAddress).name}</p>
+                                        <p className="font-semibold text-foreground text-sm">{parseLocation(booking.destinationAddress).name}</p>
                                         {parseLocation(booking.destinationAddress).address && (
-                                          <p className="text-xs text-gray-500">{parseLocation(booking.destinationAddress).address}</p>
+                                          <p className="text-xs text-muted-foreground">{parseLocation(booking.destinationAddress).address}</p>
                                         )}
                                       </div>
                                     </div>
                                   </div>
                                       <div className="flex items-center gap-2 mt-2">
                                         {booking.vehicleType && (
-                                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full font-medium">
+                                          <span className="text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded-full font-medium">
                                             {booking.vehicleType === "scooter" ? "🛵 Scooter" : "🚖 Cab"}
                                           </span>
                                         )}
                                         {booking.dropBack && (
-                                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                                          <span className="text-xs bg-blue-100 text-primary px-2 py-0.5 rounded-full font-medium">
                                             🏠 Drop-back
                                           </span>
                                         )}
@@ -662,7 +683,7 @@ const Dashboard = () => {
                                 </div>
                                 <Button 
                                   variant="outline" 
-                                  className="mt-4 md:mt-0 rounded-full border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+                                  className="mt-4 md:mt-0 rounded-full border-blue-200 text-primary hover:bg-blue-50 hover:text-blue-800"
                                   onClick={() => setSelectedScheduledBooking(booking)}
                                 >
                                   Check Status <ArrowRight className="ml-2 w-4 h-4" />
@@ -674,7 +695,7 @@ const Dashboard = () => {
                       </div>
                     ) : (
                       <div className="p-8 text-center border-2 border-dashed rounded-xl bg-gray-50">
-                        <p className="text-gray-500">You'll find your future and scheduled bookings here</p>
+                        <p className="text-muted-foreground">You'll find your future and scheduled bookings here</p>
                       </div>
                     )}
                   </div>
@@ -705,8 +726,8 @@ const Dashboard = () => {
                                 </div>
                               </div>
                               <div className="md:w-2/4 space-y-2">
-                                <div className="flex items-center text-gray-500">
-                                  <span className="font-medium text-gray-900">
+                                <div className="flex items-center text-muted-foreground">
+                                  <span className="font-medium text-foreground">
                                     Booking #{booking._id.substring(1, 6)} • {(booking as any).completedAt ? (
                                       <>Completed {formatBookingDate((booking as any).completedAt)} at {formatBookingTime((booking as any).completedAt)}</>
                                     ) : (
@@ -723,7 +744,7 @@ const Dashboard = () => {
                                       <p className="font-semibold text-gray-700 text-sm">{parseLocation((booking as any).pickupLocation || booking.location).name}</p>
                                     </div>
                                   </div>
-                                  <div className="w-0.5 h-3 bg-gray-200 ml-[3px] my-0.5" />
+                                  <div className="w-0.5 h-3 bg-border ml-[3px] my-0.5" />
                                   <div className="flex items-start">
                                     <div className="w-2 h-2 rounded-sm bg-gray-400 mt-1.5 mr-3 shrink-0" />
                                     <div>
@@ -754,7 +775,7 @@ const Dashboard = () => {
                   ) : (
                     <Card className="surface-card">
                       <CardContent className="p-6 text-center">
-                        <p className="text-gray-500">You don't have any past bookings</p>
+                        <p className="text-muted-foreground">You don't have any past bookings</p>
                       </CardContent>
                     </Card>
                   )}
@@ -796,17 +817,17 @@ const Dashboard = () => {
                       <div className="grid grid-cols-3 gap-4 my-6">
                         <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
                           <div className="text-2xl font-bold text-blue-600">{completedBookings.length}</div>
-                          <div className="text-xs text-gray-500 uppercase font-medium mt-1">Trips</div>
+                          <div className="text-xs text-muted-foreground uppercase font-medium mt-1">Trips</div>
                         </div>
                         <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
                           <div className="text-2xl font-bold text-blue-600">
                             {(user as any)?.rating ? (user as any).rating.toFixed(1) : "5.0"}
                           </div>
-                          <div className="text-xs text-gray-500 uppercase font-medium mt-1">Rating</div>
+                          <div className="text-xs text-muted-foreground uppercase font-medium mt-1">Rating</div>
                         </div>
                         <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
                           <div className="text-2xl font-bold text-blue-600">{monthsOnWellCare}</div>
-                          <div className="text-xs text-gray-500 uppercase font-medium mt-1">
+                          <div className="text-xs text-muted-foreground uppercase font-medium mt-1">
                             {monthsOnWellCare === 1 ? 'Month' : 'Months'}
                           </div>
                         </div>
@@ -820,14 +841,14 @@ const Dashboard = () => {
                             <p className="text-gray-600 text-sm">Share this with your Guide to start the trip</p>
                           </div>
                           <div className="bg-white px-6 py-3 rounded-lg border-2 border-blue-200 shadow-inner">
-                            <span className="text-2xl font-bold text-blue-700 tracking-[0.25em]">{user?.safetyPin || "----"}</span>
+                            <span className="text-2xl font-bold text-primary tracking-[0.25em]">{user?.safetyPin || "----"}</span>
                           </div>
                         </div>
                       </div>
 
                       <div className="space-y-4">
                         <div>
-                          <h4 className="text-sm font-medium text-gray-500">Contact Information</h4>
+                          <h4 className="text-sm font-medium text-muted-foreground">Contact Information</h4>
                           <div className="mt-2 space-y-2">
                             <div className="flex justify-between">
                               <span>Name</span><span>{userName || "Not provided"}</span>
@@ -841,7 +862,7 @@ const Dashboard = () => {
                           </div>
                         </div>
                         <div>
-                          <h4 className="text-sm font-medium text-gray-500">Saved Addresses</h4>
+                          <h4 className="text-sm font-medium text-muted-foreground">Saved Addresses</h4>
                           <div className="mt-2 space-y-2">
                             <div className="flex justify-between">
                               <span>Home</span><span>{profileForm.homeAddress || "Not provided"}</span>
@@ -856,7 +877,7 @@ const Dashboard = () => {
                   ) : (
                     <div className="space-y-6">
                       <div>
-                        <h4 className="text-sm font-medium text-gray-500 mb-4">Contact Information</h4>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-4">Contact Information</h4>
                         <div className="space-y-4">
                           <div className="space-y-2">
                             <Label htmlFor="edit-name" className="flex items-center gap-2">
@@ -895,7 +916,7 @@ const Dashboard = () => {
                         </div>
                       </div>
                       <div>
-                        <h4 className="text-sm font-medium text-gray-500 mb-4">Saved Addresses</h4>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-4">Saved Addresses</h4>
                         <div className="space-y-4">
                           <div className="space-y-2">
                             <Label htmlFor="edit-home" className="flex items-center gap-2">
@@ -1000,14 +1021,14 @@ const Dashboard = () => {
               <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
                 <User className="h-8 w-8 text-blue-600" />
                 <div>
-                  <p className="font-semibold text-gray-900">{contactGuide.name}</p>
-                  <p className="text-sm text-gray-500">Your assigned guide</p>
+                  <p className="font-semibold text-foreground">{contactGuide.name}</p>
+                  <p className="text-sm text-muted-foreground">Your assigned guide</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <Phone className="h-4 w-4 text-gray-500" />
+                <Phone className="h-4 w-4 text-muted-foreground" />
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Phone Number</p>
+                  <p className="text-xs text-muted-foreground mb-0.5">Phone Number</p>
                   <a
                     href={`tel:${contactGuide.phone}`}
                     className="text-blue-600 font-semibold text-lg hover:underline"
@@ -1063,7 +1084,7 @@ const Dashboard = () => {
                 {paymentBooking?.guide?.image ? (
                   <img src={paymentBooking.guide.image} alt={paymentBooking.guide.name} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500"><User size={24}/></div>
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground"><User size={24}/></div>
                 )}
               </div>
               <div className="text-left flex-1">

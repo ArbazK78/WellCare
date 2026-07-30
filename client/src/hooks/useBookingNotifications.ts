@@ -5,6 +5,8 @@ import { bookingAudio } from '@/services/BookingAudioService';
 export type IncomingBooking = {
   _id: string;
   bookingRefId: string;
+  bookingMode?: 'now' | 'schedule';
+  scheduledAt?: string;
   pickupLocation?: string;
   destinationAddress?: string;
   location?: string;            // legacy field

@@ -4,6 +4,7 @@ const Booking = require('../models/Booking');
 const Guide = require('../models/Guide');
 const dispatchService = require('../services/dispatchService');
 const scheduledBookingService = require('../services/scheduledBookingService');
+const reservationService = require('../services/reservationService');
 const fareCalculationService = require('../services/fareCalculationService');
 const {
   ACTIVE_ASSIGNED_STATUSES,
@@ -47,15 +48,39 @@ exports.createBooking = async (req, res) => {
 
     let scheduledAt = null;
     let dispatchAt = null;
+    let reservationFields = {};
     if (normalizedMode === 'schedule') {
       scheduledAt = scheduledBookingService.parseScheduledDateTime(date, time);
       if (!scheduledAt) {
         return res.status(400).json({ message: 'Scheduled date and time are invalid' });
       }
-      if (scheduledAt <= new Date()) {
-        return res.status(400).json({ message: 'Scheduled pickup must be in the future' });
+      const windowStatus = reservationService.validateReservationWindow(scheduledAt);
+      if (windowStatus === 'too_soon') {
+        return res.status(422).json({
+          message: 'Scheduled assistance must be booked at least 30 minutes before pickup.',
+          code: 'SCHEDULE_TOO_SOON',
+        });
       }
-      dispatchAt = scheduledBookingService.getDispatchAt(scheduledAt);
+      if (windowStatus === 'too_far') {
+        return res.status(422).json({
+          message: 'Scheduled assistance can be booked up to 90 days in advance.',
+          code: 'SCHEDULE_TOO_FAR',
+        });
+      }
+      if (vehicleType !== 'cab') {
+        return res.status(422).json({
+          message: 'Scheduled WellCare assistance is currently available with Cab only.',
+          code: 'SCHEDULE_CAB_ONLY',
+        });
+      }
+      const timeline = reservationService.getReservationTimeline(scheduledAt);
+      reservationFields = {
+        reservationStatus: 'open',
+        assignmentSource: 'reservation',
+        estimatedEndAt: reservationService.getEstimatedEndAt({ scheduledAt, durationMin: 0, waitingHours }),
+        ...timeline,
+        reservationAudit: [{ event: 'reservation_created', at: new Date(), actor: 'customer' }],
+      };
     }
 
     // Matching remains intentionally broad until guide capabilities are
@@ -88,6 +113,7 @@ exports.createBooking = async (req, res) => {
       scheduledAt,
       dispatchAt,
       metadata: metadata || {},
+      ...reservationFields,
       eligibleGuides: eligibleGuideIds,
       customer: req.userId,
       name,
@@ -98,23 +124,21 @@ exports.createBooking = async (req, res) => {
       bookingRefId,
     });
 
+    if (normalizedMode === 'schedule') {
+      newBooking.estimatedEndAt = reservationService.getEstimatedEndAt({
+        scheduledAt,
+        durationMin: fare.durationMin,
+        waitingHours: waitingHours || 0,
+      });
+    }
+
     const savedBooking = await newBooking.save();
     
-    // Immediate requests and scheduled requests already inside the lead window
-    // enter the same waterfall now. Future requests are handled by the scheduler.
-    if (savedBooking.bookingMode === 'now' || savedBooking.dispatchAt <= new Date()) {
-      if (savedBooking.bookingMode === 'schedule') {
-        savedBooking.dispatchStartedAt = new Date();
-        await savedBooking.save();
-      }
-      if (eligibleGuideIds.length === 0) {
-        const guides = await Guide.find({ status: 'approved', isOnline: true }).select('_id');
-        eligibleGuideIds = guides.map((guide) => guide._id);
-      }
+    if (savedBooking.bookingMode === 'now') {
       await dispatchService.initiateDispatch(savedBooking._id, eligibleGuideIds);
-      console.log(`Booking ${savedBooking._id} entered the dispatch window`);
+      console.log(`Live booking ${savedBooking._id} entered the dispatch window`);
     } else {
-      console.log(`Scheduled booking ${savedBooking._id} will dispatch at ${savedBooking.dispatchAt.toISOString()}`);
+      console.log(`Reservation ${savedBooking._id} published for ${savedBooking.scheduledAt.toISOString()}`);
     }
     res.status(201).json(savedBooking);
   } catch (error) {
@@ -222,6 +246,15 @@ exports.cancelBooking = async (req, res) => {
     booking.cancelReason = reason || 'No reason provided';
     booking.cancelledBy = 'customer';
     booking.cancelledAt = new Date();
+    if (booking.bookingMode === 'schedule') {
+      booking.guideCommitmentStatus = booking.guide ? 'cancelled' : booking.guideCommitmentStatus;
+      booking.reservationAudit.push({
+        event: 'reservation_cancelled',
+        at: booking.cancelledAt,
+        actor: 'customer',
+        guide: booking.guide || undefined,
+      });
+    }
     await booking.save();
 
     res.status(200).json({ message: 'Booking cancelled successfully' });
@@ -319,6 +352,10 @@ exports.updateBookingStatus = async (req, res) => {
     const guideId = req.guide.id;
 
     if (status === 'accepted') {
+      const offeredBooking = await Booking.findOne({ _id: bookingId }).select('bookingMode');
+      const assignmentFields = offeredBooking?.bookingMode === 'schedule'
+        ? { reservationStatus: 'fulfilled', assignmentSource: 'fallback', guideCommitmentStatus: 'active' }
+        : { assignmentSource: 'instant' };
       const booking = await Booking.findOneAndUpdate(
         {
           _id: bookingId,
@@ -333,6 +370,7 @@ exports.updateBookingStatus = async (req, res) => {
             guideQueue: [],
             currentOfferedGuide: null,
             offerExpiresAt: null,
+            ...(assignmentFields || {}),
           },
         },
         { new: true, runValidators: true }
@@ -503,5 +541,85 @@ exports.getBookingById = async (req, res) => {
   } catch (error) {
     console.error('❌ Error fetching booking by ID:', error);
     res.status(500).json({ message: 'Error fetching booking' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// SCHEDULED RESERVATION MARKETPLACE
+// ---------------------------------------------------------------------------
+exports.getGuideReservationOpportunities = async (req, res) => {
+  try {
+    const bookings = await reservationService.listOpportunitiesForGuide(req.guide.id);
+    return res.json(bookings);
+  } catch (error) {
+    console.error('Failed to load reservation opportunities:', error);
+    return res.status(500).json({ message: 'Unable to load scheduled opportunities' });
+  }
+};
+
+exports.getGuideSchedule = async (req, res) => {
+  try {
+    const bookings = await Booking.find({
+      guide: req.guide.id,
+      bookingMode: 'schedule',
+      reservationStatus: { $in: ['claimed', 'readiness_pending', 'ready', 'fulfilled'] },
+      status: { $nin: ['cancelled', 'completed'] },
+    })
+      .populate('customer', 'name phone email')
+      .sort({ scheduledAt: 1 });
+    return res.json(bookings);
+  } catch (error) {
+    console.error('Failed to load guide schedule:', error);
+    return res.status(500).json({ message: 'Unable to load your schedule' });
+  }
+};
+
+exports.claimReservation = async (req, res) => {
+  try {
+    const result = await reservationService.claimReservation(req.params.bookingId, req.guide.id);
+    if (result.code === 'claimed') return res.json({ message: 'Reservation added to your schedule', booking: result.booking });
+    if (result.code === 'conflict') return res.status(409).json({ message: 'This reservation overlaps another commitment in your schedule.' });
+    if (result.code === 'ineligible') return res.status(403).json({ message: 'Scheduled opportunities are currently available only to approved Cab guides.' });
+    return res.status(409).json({ message: 'This reservation is no longer available.' });
+  } catch (error) {
+    console.error('Reservation claim failed:', error);
+    return res.status(500).json({ message: 'Unable to claim this reservation' });
+  }
+};
+
+exports.confirmReservationReadiness = async (req, res) => {
+  try {
+    const booking = await reservationService.confirmReadiness(req.params.bookingId, req.guide.id);
+    if (!booking) return res.status(409).json({ message: 'This reservation is not awaiting your readiness confirmation.' });
+    return res.json({ message: 'Readiness confirmed', booking });
+  } catch (error) {
+    console.error('Readiness confirmation failed:', error);
+    return res.status(500).json({ message: 'Unable to confirm readiness' });
+  }
+};
+
+exports.releaseReservation = async (req, res) => {
+  try {
+    const now = new Date();
+    const booking = await Booking.findOne({
+      _id: req.params.bookingId,
+      guide: req.guide.id,
+      bookingMode: 'schedule',
+      status: 'pending',
+      reservationStatus: { $in: ['claimed', 'readiness_pending', 'ready'] },
+    });
+    if (!booking) return res.status(409).json({ message: 'This reservation can no longer be released.' });
+    booking.guide = null;
+    booking.reservationStatus = 'open';
+    booking.assignmentSource = 'reservation';
+    booking.guideCommitmentStatus = 'released';
+    booking.reservationAcceptedAt = null;
+    booking.readinessConfirmedAt = null;
+    booking.reservationAudit.push({ event: 'reservation_released', at: now, actor: 'guide', guide: req.guide.id });
+    await booking.save();
+    return res.json({ message: 'Reservation released for another guide', booking });
+  } catch (error) {
+    console.error('Reservation release failed:', error);
+    return res.status(500).json({ message: 'Unable to release reservation' });
   }
 };

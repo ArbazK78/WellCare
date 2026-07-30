@@ -16,13 +16,13 @@ const DISPATCH_DURATION_MS = 90 * 1000; // Total matching window
 /**
  * Initializes the dispatch sequence for a newly created booking.
  */
-exports.initiateDispatch = async (bookingId, matchedGuideIds) => {
+exports.initiateDispatch = async (bookingId, matchedGuideIds, { durationMs = DISPATCH_DURATION_MS } = {}) => {
   const booking = await Booking.findById(bookingId);
   if (!booking) return;
 
   booking.dispatchStartedAt = booking.dispatchStartedAt || new Date();
   booking.dispatchExpiresAt = booking.dispatchExpiresAt
-    || new Date(booking.dispatchStartedAt.getTime() + DISPATCH_DURATION_MS);
+    || new Date(booking.dispatchStartedAt.getTime() + durationMs);
 
   // Zero supply is not an immediate failure. Keep the request open so a guide
   // who comes online during the matching window can still receive it.
@@ -100,17 +100,25 @@ exports.autoRotateExpiredOffers = async () => {
   try {
     const now = new Date();
 
-    await Booking.updateMany(
-      { status: 'pending', dispatchExpiresAt: { $ne: null, $lte: now } },
-      { $set: {
-        currentOfferedGuide: null,
-        offerExpiresAt: null,
-        status: 'cancelled',
-        cancelReason: 'We could not find an available guide within 90 seconds. No charge was made.',
-        cancelledBy: 'system',
-        cancelledAt: now,
-      } }
-    );
+    const expiredDispatches = await Booking.find({
+      status: 'pending',
+      dispatchExpiresAt: { $ne: null, $lte: now },
+    });
+    for (const booking of expiredDispatches) {
+      booking.currentOfferedGuide = null;
+      booking.offerExpiresAt = null;
+      booking.status = 'cancelled';
+      booking.cancelReason = booking.bookingMode === 'schedule'
+        ? 'We could not secure a cab guide before the scheduled fulfilment cutoff. No charge was made.'
+        : 'We could not find an available guide within 90 seconds. No charge was made.';
+      booking.cancelledBy = 'system';
+      booking.cancelledAt = now;
+      if (booking.bookingMode === 'schedule') {
+        booking.reservationStatus = 'unfulfilled';
+        booking.reservationAudit.push({ event: 'reservation_unfulfilled', at: now, actor: 'system' });
+      }
+      await booking.save();
+    }
 
     // A guide polling after coming online can claim requests that began with no supply.
     const waitingBookings = await Booking.find({
@@ -120,8 +128,10 @@ exports.autoRotateExpiredOffers = async () => {
       offerExpiresAt: null,
     });
     if (waitingBookings.length > 0) {
-      const guides = await Guide.find({ status: 'approved', isOnline: true }).select('_id');
       for (const booking of waitingBookings) {
+        const guideCriteria = { status: 'approved', isOnline: true };
+        if (booking.bookingMode === 'schedule') guideCriteria.vehicleType = 'cab';
+        const guides = await Guide.find(guideCriteria).select('_id');
         const attempted = new Set((booking.eligibleGuides || []).map((id) => id.toString()));
         const newGuideIds = guides.map((guide) => guide._id).filter((id) => !attempted.has(id.toString()));
         if (newGuideIds.length > 0) {

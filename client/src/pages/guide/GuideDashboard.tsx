@@ -56,6 +56,8 @@ const GuideDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [reservationOpportunities, setReservationOpportunities] = useState<Booking[]>([]);
+  const [mySchedule, setMySchedule] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Get initials from name for avatar
@@ -75,17 +77,27 @@ const GuideDashboard = () => {
       if (!token) { setLoading(false); return; }
 
       const headers = { Authorization: `Bearer ${token}` };
-      const [pendingRes, acceptedRes, completedRes] = await Promise.all([
+      const results = await Promise.allSettled([
         api.get('/bookings/guide/pending',   { headers }),
         api.get('/bookings/guide/accepted',  { headers }),
         api.get('/bookings/guide/completed', { headers }),
+        api.get('/bookings/guide/reservations/opportunities', { headers }),
+        api.get('/bookings/guide/reservations/schedule', { headers }),
       ]);
-
-      setBookings([
-        ...pendingRes.data,
-        ...acceptedRes.data,
-        ...completedRes.data,
-      ]);
+      const dataAt = (index: number) => results[index].status === 'fulfilled'
+        ? (results[index] as PromiseFulfilledResult<any>).value.data
+        : null;
+      const pending = dataAt(0);
+      const accepted = dataAt(1);
+      const completed = dataAt(2);
+      if (pending && accepted && completed) setBookings([...pending, ...accepted, ...completed]);
+      const opportunities = dataAt(3);
+      const schedule = dataAt(4);
+      if (opportunities) setReservationOpportunities(opportunities);
+      if (schedule) setMySchedule(schedule);
+      if (results.some((result) => result.status === 'rejected')) {
+        console.warn('Some guide dashboard sections could not be refreshed. Existing data was preserved.');
+      }
     } catch (error) {
       console.error('❌ Error fetching guide bookings:', error);
       toast({ title: "Error loading bookings", description: "Failed to load your bookings.", variant: "destructive" });
@@ -96,6 +108,10 @@ const GuideDashboard = () => {
 
   // Initial fetch on mount / currentGuide change
   useEffect(() => { fetchBookings(); }, [fetchBookings]);
+  useEffect(() => {
+    const interval = window.setInterval(fetchBookings, 30_000);
+    return () => window.clearInterval(interval);
+  }, [fetchBookings]);
 
   // Re-fetch when GuideLayout signals an acceptance (state.refresh changes)
   useEffect(() => {
@@ -111,6 +127,35 @@ const GuideDashboard = () => {
   const completedBookings = bookings.filter(booking => booking.status === "completed");
 
 
+  const claimReservation = async (bookingId: string) => {
+    try {
+      await api.put(`/bookings/guide/reservations/${bookingId}/claim`);
+      toast({ title: "Reservation accepted", description: "This commitment is now in My Schedule." });
+      await fetchBookings();
+    } catch (error: any) {
+      toast({ title: "Could not accept reservation", description: error?.response?.data?.message || "Please try another opportunity.", variant: "destructive" });
+    }
+  };
+
+  const confirmReadiness = async (bookingId: string) => {
+    try {
+      await api.put(`/bookings/guide/reservations/${bookingId}/readiness`);
+      toast({ title: "Readiness confirmed", description: "Stay online so WellCare can protect the pickup." });
+      await fetchBookings();
+    } catch (error: any) {
+      toast({ title: "Unable to confirm", description: error?.response?.data?.message || "Please try again.", variant: "destructive" });
+    }
+  };
+
+  const releaseReservation = async (bookingId: string) => {
+    try {
+      await api.put(`/bookings/guide/reservations/${bookingId}/release`);
+      toast({ title: "Reservation released", description: "It is available to another Cab guide." });
+      await fetchBookings();
+    } catch (error: any) {
+      toast({ title: "Unable to release", description: error?.response?.data?.message || "Please try again.", variant: "destructive" });
+    }
+  };
   const handleAcceptBooking = async (bookingId: string) => {
     try {
       const token = localStorage.getItem('guide_token');
@@ -518,7 +563,7 @@ const GuideDashboard = () => {
             </TabsTrigger>
             <TabsTrigger value="scheduled" className="flex items-center">
               <Bell className="h-4 w-4 mr-1" />
-              Scheduled
+              Scheduled ({reservationOpportunities.length + mySchedule.length})
             </TabsTrigger>
             <TabsTrigger value="completed" className="flex items-center">
               <Check className="h-4 w-4 mr-1 text-gray-400" />
@@ -547,18 +592,65 @@ const GuideDashboard = () => {
           </TabsContent>
           
           {/* ── Scheduled — reserved for future pre-planned bookings ─────────── */}
-          <TabsContent value="scheduled">
-            <Card className="surface-card">
-              <CardHeader>
-                <CardTitle>Scheduled Bookings</CardTitle>
-                <CardDescription>
-                  Pre-planned and schedule-based bookings will appear here. Coming soon.
-                </CardDescription>
-              </CardHeader>
-            </Card>
+          <TabsContent value="scheduled" className="space-y-8">
+            <section>
+              <div className="mb-4">
+                <h2 className="text-xl font-bold">Scheduled Opportunities</h2>
+                <p className="text-sm text-muted-foreground">Review Cab requests and accept only commitments that fit your schedule.</p>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                {reservationOpportunities.length === 0 ? (
+                  <Card className="surface-card lg:col-span-2"><CardContent className="p-6 text-sm text-muted-foreground">No compatible scheduled opportunities are available right now.</CardContent></Card>
+                ) : reservationOpportunities.map((booking) => (
+                  <Card key={booking._id} className="surface-card">
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-4">
+                        <div><CardTitle className="text-lg">Cab assistance</CardTitle><CardDescription>{formatBookingDate(booking.scheduledAt || booking.date)} at {formatBookingTime(booking.scheduledAt || booking.time)}</CardDescription></div>
+                        <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">₹{booking.totalFare}</span>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2 text-sm">
+                        <p><User className="mr-2 inline h-4 w-4 text-primary" />{(booking.customer as any)?.name || "WellCare customer"}</p>
+                        <p className="text-xs text-muted-foreground">Contact details unlock after you accept the commitment.</p>
+                        <p><MapPin className="mr-2 inline h-4 w-4 text-primary" />{parseLocation(booking.pickupLocation).name}</p>
+                        <p><Clock className="mr-2 inline h-4 w-4 text-primary" />~{booking.durationMin || 0} min journey · {booking.waitingHours || 0}h waiting</p>
+                      </div>
+                      <Button className="w-full" onClick={() => claimReservation(booking._id)}>Accept commitment</Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <div className="mb-4"><h2 className="text-xl font-bold">My Schedule</h2><p className="text-sm text-muted-foreground">Accepted commitments and readiness requirements.</p></div>
+              <div className="space-y-4">
+                {mySchedule.length === 0 ? (
+                  <Card className="surface-card"><CardContent className="p-6 text-sm text-muted-foreground">You have no upcoming commitments.</CardContent></Card>
+                ) : mySchedule.map((booking) => (
+                  <Card key={booking._id} className="surface-card">
+                    <CardContent className="flex flex-col gap-5 p-6 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="font-semibold">{formatBookingDate(booking.scheduledAt || booking.date)} · {formatBookingTime(booking.scheduledAt || booking.time)}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{parseLocation(booking.pickupLocation).name} → {parseLocation(booking.destinationAddress).name}</p>
+                        <div className="mt-3 rounded-xl border border-border/70 bg-secondary/35 p-3 text-sm">
+                          <p className="font-semibold">{(booking.customer as any)?.name || "WellCare customer"}</p>
+                          <p className="mt-1 text-muted-foreground">{(booking.customer as any)?.phone || "Contact available closer to pickup"}</p>
+                          {(booking.customer as any)?.email && <p className="text-muted-foreground">{(booking.customer as any).email}</p>}
+                        </div>
+                        <span className="mt-3 inline-flex rounded-full bg-secondary px-3 py-1 text-xs font-semibold capitalize">{(booking.reservationStatus || "claimed").replaceAll("_", " ")}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {booking.reservationStatus === "readiness_pending" && <Button onClick={() => confirmReadiness(booking._id)}>I am ready</Button>}
+                        {booking.reservationStatus !== "fulfilled" && <Button variant="outline" onClick={() => releaseReservation(booking._id)}>Release</Button>}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
           </TabsContent>
-          
-          {/* ── Completed bookings ────────────────────────────────────────────── */}
           <TabsContent value="completed">
             {loading ? (
               <div className="text-center py-8">Loading...</div>

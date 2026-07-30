@@ -21,6 +21,15 @@ export type Booking = {
   _id: string;
   bookingMode?: "now" | "schedule";
   dispatchStartedAt?: string | null;
+  scheduledAt?: string | null;
+  estimatedEndAt?: string | null;
+  reservationStatus?: "open" | "claimed" | "readiness_pending" | "ready" | "fallback_dispatching" | "fulfilled" | "unfulfilled";
+  assignmentSource?: "instant" | "reservation" | "fallback";
+  readinessDeadline?: string | null;
+  readinessConfirmedAt?: string | null;
+  fallbackDispatchAt?: string | null;
+  fulfilmentDeadline?: string | null;
+  guideCommitmentStatus?: string;
   status: "pending" | "accepted" | "rejected" | "completed" | "arrived" | "in_progress" | "cancelled";
   vehicleType: "scooter" | "cab";
   pickupLocation: string;

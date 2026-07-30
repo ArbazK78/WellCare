@@ -56,6 +56,7 @@ const formSchema = z.object({
   location: z.string().min(2, { message: "Location is required." }),
   experience: z.string().min(1, { message: "Please select your experience level." }), // radio group = string
   specialties: z.array(z.string()).min(1, { message: "Select at least one specialty." }), // multi-select = array
+  vehicleType: z.array(z.enum(["scooter", "cab"])).min(1, { message: "Select at least one vehicle you can provide." }),
   bio: z.string().max(300, { message: "Bio must be under 300 characters." }).optional(),
   password: z.string().min(8, {
     message: "Password must be at least 8 characters.",
@@ -367,6 +368,25 @@ const GuideRegister = () => {
                       )}
                     />
 
+                    <FormField
+                      control={form.control}
+                      name="vehicleType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Vehicles you can provide</FormLabel>
+                          <FormControl>
+                            <MultiSelect
+                              options={["scooter", "cab"]}
+                              selected={field.value}
+                              onChange={field.onChange}
+                              placeholder="Select Scooter, Cab, or both"
+                            />
+                          </FormControl>
+                          <FormDescription>Cab capability is required to claim scheduled reservations.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     {/* Bio Field */}
                     <FormField
                       control={form.control}

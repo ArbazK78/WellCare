@@ -1,6 +1,7 @@
 const Booking = require('../models/Booking');
 const Guide = require('../models/Guide');
 const dispatchService = require('./dispatchService');
+const reservationService = require('./reservationService');
 
 const DISPATCH_LEAD_TIME_MS = 30 * 60 * 1000;
 const DEFAULT_TIME_ZONE_OFFSET = '+05:30';
@@ -116,4 +117,5 @@ module.exports = {
   backfillScheduledBookingTimes,
   getDispatchAt,
   parseScheduledDateTime,
+  processReservations: reservationService.processReservations,
 };

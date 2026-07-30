@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export interface ScheduleData {
   pickupDate?: Date;
@@ -155,12 +156,31 @@ export function SchedulePicker({ value, onChange }: SchedulePickerProps) {
 
   const calcDropoff = getCalculatedDropoffTime();
   const calcPickup = getCalculatedPickupTime();
+  const activeTime = activeTab === "pickup" ? value.pickupTime : value.dropoffTime;
+  const [activeHour24 = 9, activeMinute = 0] = (activeTime || "09:00").split(":").map(Number);
+  const activePeriod = activeHour24 >= 12 ? "PM" : "AM";
+  const activeHour12 = activeHour24 % 12 || 12;
+  const updateClock = (part: "hour" | "minute" | "period", nextValue: string) => {
+    let hour = activeHour12;
+    let minute = activeMinute;
+    let period = activePeriod;
+    if (part === "hour") hour = Number(nextValue);
+    if (part === "minute") minute = Number(nextValue);
+    if (part === "period") period = nextValue;
+    const hour24 = (hour % 12) + (period === "PM" ? 12 : 0);
+    handleUpdate(activeTab === "pickup" ? "pickupTime" : "dropoffTime", `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
+  };
 
   // ── Date Disabled Rules ──
   const isDateDisabled = (date: Date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
+    const latest = new Date();
+    latest.setHours(0, 0, 0, 0);
+    latest.setDate(latest.getDate() + 90);
+    if (date > latest) return true;
+
     if (activeTab === "pickup") {
       return date < today;
     } else {
@@ -171,14 +191,14 @@ export function SchedulePicker({ value, onChange }: SchedulePickerProps) {
   };
 
   return (
-    <div className="w-full max-w-sm mx-auto space-y-6">
+    <div className="mx-auto w-full max-w-xl space-y-6">
       {/* Tabs */}
-      <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+      <div className="flex gap-2 rounded-xl bg-secondary p-1">
         <button
           type="button"
           className={cn(
             "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2",
-            activeTab === "pickup" ? "bg-white shadow-sm text-blue-600" : "text-gray-600 hover:bg-gray-200"
+            activeTab === "pickup" ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:bg-background/60"
           )}
           onClick={() => setActiveTab("pickup")}
         >
@@ -188,7 +208,7 @@ export function SchedulePicker({ value, onChange }: SchedulePickerProps) {
           type="button"
           className={cn(
             "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2",
-            activeTab === "dropoff" ? "bg-white shadow-sm text-blue-600" : "text-gray-600 hover:bg-gray-200"
+            activeTab === "dropoff" ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:bg-background/60"
           )}
           onClick={() => setActiveTab("dropoff")}
         >
@@ -196,11 +216,11 @@ export function SchedulePicker({ value, onChange }: SchedulePickerProps) {
         </button>
       </div>
 
-      <Card className="overflow-hidden border-gray-200 shadow-sm">
+      <Card className="overflow-hidden border-border bg-card shadow-sm">
         <CardContent className="p-0">
-          <div className="p-4 border-b bg-gray-50/50 flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-blue-500" />
+          <div className="p-4 border-b border-border bg-secondary/35 flex justify-between items-center">
+            <span className="text-sm font-medium text-foreground flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4 text-primary" />
               Select Date
             </span>
             <Button 
@@ -226,38 +246,55 @@ export function SchedulePicker({ value, onChange }: SchedulePickerProps) {
             className="p-4 flex justify-center"
           />
 
-          <div className="p-4 border-t bg-gray-50/50">
-            <label className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-3">
-              <Clock className="h-4 w-4 text-blue-500" />
+          <div className="p-4 border-t border-border bg-secondary/35">
+            <label className="text-sm font-medium text-foreground flex items-center gap-2 mb-3">
+              <Clock className="h-4 w-4 text-primary" />
               Select Time
             </label>
-            <div className="relative">
-              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-              <input
-                type="time"
-                className="w-full flex h-10 rounded-md border border-input bg-white px-3 py-2 pl-10 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none cursor-pointer"
-                value={activeTab === "pickup" ? value.pickupTime : value.dropoffTime}
-                onChange={(e) => handleUpdate(activeTab === "pickup" ? "pickupTime" : "dropoffTime", e.target.value)}
-              />
+            <div className="grid grid-cols-[1fr_auto_1fr_1fr] items-center gap-2" aria-label="Choose time">
+              <Select value={String(activeHour12)} onValueChange={(next) => updateClock("hour", next)}>
+                <SelectTrigger className="h-12 rounded-xl border-border bg-background px-4 text-base font-semibold shadow-sm focus:ring-primary/25">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-72 rounded-xl border-border bg-popover p-1 shadow-2xl">
+                  {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => (
+                    <SelectItem className="h-10 rounded-lg pl-8 font-semibold focus:bg-primary/10 focus:text-primary" key={hour} value={String(hour)}>{String(hour).padStart(2, "0")}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-xl font-bold text-muted-foreground">:</span>
+              <Select value={String(activeMinute)} onValueChange={(next) => updateClock("minute", next)}>
+                <SelectTrigger className="h-12 rounded-xl border-border bg-background px-4 text-base font-semibold shadow-sm focus:ring-primary/25">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-72 rounded-xl border-border bg-popover p-1 shadow-2xl">
+                  {Array.from({ length: 60 }, (_, minute) => minute).map((minute) => (
+                    <SelectItem className="h-10 rounded-lg pl-8 font-semibold focus:bg-primary/10 focus:text-primary" key={minute} value={String(minute)}>{String(minute).padStart(2, "0")}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="grid h-12 grid-cols-2 rounded-xl bg-secondary p-1">
+                {["AM", "PM"].map((period) => <button key={period} type="button" onClick={() => updateClock("period", period)} className={cn("rounded-lg text-xs font-bold transition", activePeriod === period ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>{period}</button>)}
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* ── ETA Information Box ── */}
-      <div className="bg-blue-50/80 border border-blue-100 rounded-xl p-4 text-center">
+      <div className="rounded-xl border border-primary/20 bg-primary/10 p-4 text-center">
         {activeTab === "pickup" && calcDropoff ? (
           <>
-            <p className="text-blue-900 font-semibold text-lg">{format(calcDropoff, "h:mm a")} IST Drop-Off Time</p>
-            <p className="text-blue-600/80 text-sm mt-1">About {tripDuration} min trip</p>
+            <p className="text-foreground font-semibold text-lg">{format(calcDropoff, "h:mm a")} IST Drop-Off Time</p>
+            <p className="text-muted-foreground text-sm mt-1">About {tripDuration} min trip</p>
           </>
         ) : activeTab === "dropoff" && calcPickup ? (
           <>
-            <p className="text-blue-900 font-semibold text-lg">Earliest Pick-up at {format(calcPickup, "h:mm a")}</p>
-            <p className="text-blue-600/80 text-sm mt-1">Based on ~{tripDuration} min trip</p>
+            <p className="text-foreground font-semibold text-lg">Earliest Pick-up at {format(calcPickup, "h:mm a")}</p>
+            <p className="text-muted-foreground text-sm mt-1">Based on ~{tripDuration} min trip</p>
           </>
         ) : (
-          <p className="text-blue-700/60 text-sm italic">Select date and time to see estimates</p>
+          <p className="text-muted-foreground text-sm italic">Select date and time to see estimates</p>
         )}
       </div>
     </div>

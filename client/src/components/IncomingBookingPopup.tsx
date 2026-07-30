@@ -130,7 +130,7 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
         <div className="bg-[hsl(160_28%_14%)] px-6 py-5 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-white/65 uppercase tracking-widest mb-0.5">New Booking Request</p>
+              <p className="text-xs font-medium text-white/65 uppercase tracking-widest mb-0.5">{booking.bookingMode === "schedule" ? "Scheduled pickup fallback" : "New booking request"}</p>
               <h2 className="text-xl font-bold">
                 {booking.vehicleType === 'scooter' ? '🛵 Scooter Ride' : booking.vehicleType === 'cab' ? '🚖 Cab Ride' : 'Booking Request'}
               </h2>

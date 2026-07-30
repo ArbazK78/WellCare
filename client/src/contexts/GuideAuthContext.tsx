@@ -15,7 +15,9 @@ export type Guide = {
   experience?: string;
   languages?: string[];
   specialties?: string[];
+  vehicleType?: ('scooter' | 'cab')[];
   rating?: number;
+  isOnline?: boolean;
   status: GuideStatus;
   registeredAt: string;
   profile_picture?: FileList,
@@ -31,6 +33,7 @@ type GuideAuthContextType = {
   guideRegister: (phone: string, name: string, password: string, email?: string, location?: string,
     experience?: string,
     specialties?: string[],
+    vehicleType?: ('scooter' | 'cab')[],
     bio?: string, profile_picture?: FileList, government_id?: FileList) => Promise<string>;
   guideLogout: () => Promise<void>;
   getAllApprovedGuides: () => Promise<Guide[]>;
@@ -58,6 +61,7 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
           });
           setIsAuthenticated(true);
           setCurrentGuide(data);
+          localStorage.setItem("guide_data", JSON.stringify(data));
           setIsOnline(data.isOnline ?? false); // Restore online status from DB
         } catch (error: any) {
           // Only clear the session on an explicit auth rejection (401).
@@ -67,7 +71,18 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
             console.warn("⚠️ Guide token rejected by server — logging out.");
             await guideLogout();
           } else {
-            console.warn("⚠️ Could not verify guide session (non-auth error). Keeping token.", error?.message);
+            console.warn("Could not refresh guide session; restoring the cached session.", error?.message);
+            const cachedGuide = localStorage.getItem("guide_data");
+            if (cachedGuide) {
+              try {
+                const guide = JSON.parse(cachedGuide);
+                setCurrentGuide(guide);
+                setIsOnline(guide.isOnline ?? false);
+                setIsAuthenticated(true);
+              } catch {
+                console.warn("Cached guide profile is unreadable; keeping the token for the next retry.");
+              }
+            }
           }
         } finally {
           setIsAuthLoading(false); // Session restore attempt is done either way
@@ -109,6 +124,7 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
     location?: string,
     experience?: string,
     specialties?: string[],
+    vehicleType?: ('scooter' | 'cab')[],
     bio?: string,
     profile_picture?: FileList,
     government_id?: FileList,
@@ -128,6 +144,9 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
       // Send array items individually
       if (specialties && specialties.length > 0) {
         specialties.forEach(spec => formData.append("specialties[]", spec));
+      }
+      if (vehicleType && vehicleType.length > 0) {
+        vehicleType.forEach(type => formData.append("vehicleType[]", type));
       }
 
       // Append files correctly
@@ -189,6 +208,12 @@ export const GuideAuthProvider = ({ children }: { children: ReactNode }) => {
       const next = !isOnline;
       const { data } = await api.put('/guides/online-status', { isOnline: next });
       setIsOnline(data.isOnline);
+      setCurrentGuide((current) => {
+        if (!current) return current;
+        const updated = { ...current, isOnline: data.isOnline } as Guide;
+        localStorage.setItem("guide_data", JSON.stringify(updated));
+        return updated;
+      });
       console.log(`📡 Guide is now ${data.isOnline ? 'ONLINE 🟢' : 'OFFLINE 🔴'}`);
 
       if (data.isOnline) {

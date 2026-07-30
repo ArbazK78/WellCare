@@ -15,6 +15,9 @@ exports.registerGuide = async (req, res) => {
 
     const rawSpecialties = req.body.specialties || req.body['specialties[]'] || [];
     const specialties = Array.isArray(rawSpecialties) ? rawSpecialties : [rawSpecialties];
+    const rawVehicleTypes = req.body.vehicleType || req.body['vehicleType[]'] || [];
+    const vehicleType = (Array.isArray(rawVehicleTypes) ? rawVehicleTypes : [rawVehicleTypes])
+      .filter((type) => ['scooter', 'cab'].includes(type));
     const profilePhoto = req.files?.profile_picture?.[0];
     const governmentId = req.files?.government_id?.[0];
     if (!profilePhoto || !governmentId) {
@@ -35,6 +38,7 @@ exports.registerGuide = async (req, res) => {
       location,
       experience,
       specialties,
+      vehicleType,
       bio,
       image: profilePhoto
         ? req.protocol + '://' + req.get('host') + '/uploads/guide-profiles/' + profilePhoto.filename

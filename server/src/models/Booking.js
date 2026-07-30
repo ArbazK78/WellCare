@@ -22,6 +22,31 @@ const BookingSchema = new mongoose.Schema({
   // Hard product-level deadline for finding a guide once dispatch begins.
   dispatchExpiresAt: { type: Date, default: null },
 
+  // Scheduled reservation lifecycle. Live bookings leave these fields unset.
+  reservationStatus: {
+    type: String,
+    enum: ['open', 'claimed', 'readiness_pending', 'ready', 'fallback_dispatching', 'fulfilled', 'unfulfilled'],
+    default: undefined,
+  },
+  assignmentSource: { type: String, enum: ['instant', 'reservation', 'fallback'], default: undefined },
+  reservationAcceptedAt: { type: Date, default: null },
+  readinessDeadline: { type: Date, default: null },
+  readinessConfirmedAt: { type: Date, default: null },
+  fallbackDispatchAt: { type: Date, default: null },
+  fulfilmentDeadline: { type: Date, default: null },
+  estimatedEndAt: { type: Date, default: null },
+  guideCommitmentStatus: {
+    type: String,
+    enum: ['committed', 'readiness_required', 'ready', 'active', 'released', 'cancelled'],
+    default: undefined,
+  },
+  reservationAudit: [{
+    event: { type: String, required: true },
+    at: { type: Date, default: Date.now },
+    actor: { type: String, enum: ['customer', 'guide', 'system'], required: true },
+    guide: { type: mongoose.Schema.Types.ObjectId, ref: 'Guide' },
+  }],
+
   // Free-form metadata for future use (e.g. visitReason)
   metadata: {
     type: mongoose.Schema.Types.Mixed,
@@ -157,4 +182,12 @@ BookingSchema.index(
   { name: 'scheduled_booking_activation' }
 );
 
+BookingSchema.index(
+  { bookingMode: 1, reservationStatus: 1, scheduledAt: 1 },
+  { name: 'reservation_marketplace' }
+);
+BookingSchema.index(
+  { guide: 1, scheduledAt: 1, estimatedEndAt: 1, reservationStatus: 1 },
+  { name: 'guide_reservation_conflicts' }
+);
 module.exports = mongoose.model('Booking', BookingSchema);

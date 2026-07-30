@@ -110,6 +110,25 @@ router.put('/online-status', verifyGuideToken, async (req, res) => {
   }
 });
 
+// Persist a guide's latest online coordinates for scheduled readiness ETA checks.
+router.put('/location', verifyGuideToken, async (req, res) => {
+  try {
+    const lat = Number(req.body.lat);
+    const lng = Number(req.body.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return res.status(400).json({ message: 'Valid latitude and longitude are required' });
+    }
+    const guide = await Guide.findOneAndUpdate(
+      { _id: req.guide.id, isOnline: true },
+      { $set: { currentLocation: { lat, lng, updatedAt: new Date() } } },
+      { new: true, select: '_id currentLocation' }
+    );
+    if (!guide) return res.status(409).json({ message: 'Go online before sharing live location' });
+    return res.json({ updatedAt: guide.currentLocation.updatedAt });
+  } catch (error) {
+    return res.status(500).json({ message: 'Unable to update guide location' });
+  }
+});
 module.exports = router;
 
 
