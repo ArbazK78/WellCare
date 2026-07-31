@@ -7,8 +7,7 @@ import { useGeolocation } from '@/hooks/useGeolocation';
 import { Booking } from '@/contexts/BookingContext';
 import { parseLocation, cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-
-const libraries: ("places")[] = ["places"];
+import { GOOGLE_MAPS_LIBRARIES, GOOGLE_MAPS_LOADER_ID } from '@/lib/googleMapsLoader';
 
 // Map options for a locked, clean navigation view
 const mapOptions = {
@@ -59,9 +58,9 @@ interface ActiveRideViewProps {
 
 export default function ActiveRideView({ booking, onArrive, onCancel, onStartTrip, onCompleteTrip }: ActiveRideViewProps) {
   const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
+    id: GOOGLE_MAPS_LOADER_ID,
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
-    libraries,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   const { toast } = useToast();
@@ -222,7 +221,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
       </div>
 
       {/* Bottom Dashboard Panel (Slide-up Drawer) */}
-      <div className="bg-card text-card-foreground rounded-t-3xl -mt-6 relative z-10 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] transition-all duration-300 ease-in-out max-h-[70%] overflow-y-auto shrink-0">
+      <div className="bg-card text-card-foreground rounded-t-3xl -mt-6 relative z-10 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_-14px_45px_rgba(0,0,0,0.38)] transition-all duration-300 ease-in-out max-h-[70%] overflow-y-auto shrink-0 border-t border-border">
         {/* Drawer Handle */}
         <button 
           onClick={() => setIsDrawerOpen(!isDrawerOpen)}
@@ -245,7 +244,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
           </div>
         </div>
 
-        <div className="bg-muted/50 p-4 rounded-xl flex items-center justify-between mb-6 border border-border">
+        <div className="bg-muted/55 dark:bg-muted/35 p-4 rounded-xl flex items-center justify-between mb-6 border border-border">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary/15 rounded-full flex items-center justify-center text-primary">
               <User size={20} />
@@ -259,7 +258,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
             <Button 
               variant="outline" 
               size="icon" 
-              className="rounded-full w-10 h-10 border-border text-foreground"
+              className="rounded-full w-10 h-10 border-border bg-background/60 text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-background/30"
               onClick={() => {
                 const phone = booking.customer?.phone || (booking as any).phone;
                 if (phone) window.open(`tel:${phone}`);
@@ -270,7 +269,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
             <Button 
               variant="outline" 
               size="icon" 
-              className="rounded-full w-10 h-10 border-border text-foreground"
+              className="rounded-full w-10 h-10 border-border bg-background/60 text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-background/30"
               onClick={() => toast({ title: "Coming soon", description: "In-app chat will be available in the next update." })}
             >
               <MessageSquare size={18} />
@@ -299,7 +298,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
             {/* Cancel Button */}
             <Button 
               variant="outline" 
-              className="w-full mt-2 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+              className="w-full mt-2 bg-transparent text-destructive border-destructive/35 hover:bg-destructive/10 hover:text-destructive dark:text-red-400 dark:border-red-500/35 dark:hover:bg-red-500/10 dark:hover:text-red-300"
               onClick={() => setIsCancelModalOpen(true)}
             >
               Cancel Ride
@@ -309,15 +308,15 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
 
         {isInProgress ? (
           <Button 
-            className="w-full py-6 rounded-xl text-lg font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/30 transition-all active:scale-[0.98]"
+            className="w-full py-6 rounded-xl text-lg font-bold !bg-emerald-600 hover:!bg-emerald-700 !text-white shadow-lg shadow-emerald-600/25 transition-all active:scale-[0.98] disabled:!bg-muted disabled:!text-muted-foreground disabled:opacity-100 disabled:shadow-none"
             onClick={handleCompleteClick}
             disabled={isCompleting}
           >
             {isCompleting ? "Completing..." : "Complete Trip"}
           </Button>
         ) : isArrived ? (
-          <div className="bg-primary/10 border border-primary/25 rounded-xl p-4 flex flex-col items-center">
-            <p className="text-sm font-semibold text-primary mb-3 text-center">
+          <div className="bg-muted/55 dark:bg-muted/35 border border-border rounded-xl p-4 flex flex-col items-center">
+            <p className="text-sm font-semibold text-foreground mb-3 text-center">
               Enter {booking.name || "Customer"}'s Safety PIN
             </p>
             <div className="flex gap-2 w-full max-w-[200px] mb-4">
@@ -325,12 +324,12 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
                 value={otpInput}
                 onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
                 placeholder="____"
-                className="text-center text-2xl tracking-[0.5em] font-bold h-12 bg-background text-foreground border-border"
+                className="text-center text-2xl tracking-[0.5em] font-bold h-12 !bg-background !text-foreground border-border placeholder:text-muted-foreground focus-visible:ring-primary"
                 type="tel"
               />
             </div>
             <Button 
-              className="w-full py-5 rounded-lg text-md font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all active:scale-[0.98]"
+              className="w-full py-5 rounded-lg text-md font-bold !bg-primary hover:!bg-primary/90 !text-primary-foreground shadow-md transition-all active:scale-[0.98] disabled:!bg-muted disabled:!text-muted-foreground disabled:opacity-100 disabled:shadow-none"
               onClick={handleStartTripSubmit}
               disabled={otpInput.length !== 4 || isStartingTrip}
             >
@@ -339,7 +338,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
           </div>
         ) : (
           <Button 
-            className="w-full py-6 rounded-xl text-lg font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/30 transition-all active:scale-[0.98]"
+            className="w-full py-6 rounded-xl text-lg font-bold !bg-primary hover:!bg-primary/90 !text-primary-foreground shadow-lg shadow-primary/25 transition-all active:scale-[0.98] disabled:!bg-muted disabled:!text-muted-foreground disabled:opacity-100 disabled:shadow-none"
             onClick={handleArriveClick}
             disabled={isArriving}
           >

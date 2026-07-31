@@ -5,8 +5,7 @@ import { cn, parseLocation } from '@/lib/utils';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { IncomingBooking } from '@/hooks/useBookingNotifications';
 import { useJsApiLoader } from '@react-google-maps/api';
-
-const libraries: ("places")[] = ["places"];
+import { GOOGLE_MAPS_LIBRARIES, GOOGLE_MAPS_LOADER_ID } from '@/lib/googleMapsLoader';
 
 const COUNTDOWN_SECONDS = 30;
 
@@ -37,8 +36,9 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
 
   // Load Google Maps API so DistanceMatrixService is available
   const { isLoaded } = useJsApiLoader({
+    id: GOOGLE_MAPS_LOADER_ID,
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
-    libraries,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   const { location: guideLocation } = useGeolocation();

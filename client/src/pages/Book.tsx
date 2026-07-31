@@ -22,6 +22,7 @@ import Navbar from "@/components/AppNavbar";
 import { useBookings, BookingService } from "@/contexts/BookingContext";
 import { format } from "date-fns";
 import { useJsApiLoader } from "@react-google-maps/api";
+import { GOOGLE_MAPS_LIBRARIES, GOOGLE_MAPS_LOADER_ID } from "@/lib/googleMapsLoader";
 import { LocationAutocomplete, LocationData } from "@/components/ui/LocationAutocomplete";
 import {
   Popover,
@@ -126,12 +127,11 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
   return data?.message || fallback;
 };
 
-const libraries: ("places" | "drawing" | "geometry" | "localContext" | "visualization")[] = ["places"];
-
 const Book = () => {
   const { isLoaded } = useJsApiLoader({
+    id: GOOGLE_MAPS_LOADER_ID,
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
-    libraries,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   const locationState = useLocation();

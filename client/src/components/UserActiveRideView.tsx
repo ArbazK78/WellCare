@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Booking } from '@/contexts/BookingContext';
 import { parseLocation } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-
-const libraries: ("places")[] = ["places"];
+import { GOOGLE_MAPS_LIBRARIES, GOOGLE_MAPS_LOADER_ID } from '@/lib/googleMapsLoader';
 
 const mapOptions = {
   disableDefaultUI: true,
@@ -54,8 +53,9 @@ interface UserActiveRideViewProps {
 export default function UserActiveRideView({ booking, onCancelClick, onContactGuide }: UserActiveRideViewProps) {
   const { user } = useAuth();
   const { isLoaded } = useJsApiLoader({
+    id: GOOGLE_MAPS_LOADER_ID,
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
-    libraries,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
@@ -182,7 +182,7 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
       </div>
 
       {/* Drawer Container */}
-      <div className="bg-card text-card-foreground rounded-t-3xl -mt-6 relative z-10 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] transition-all duration-300 ease-in-out max-h-[70%] overflow-y-auto shrink-0 border-t border-border">
+      <div className="bg-card text-card-foreground rounded-t-3xl -mt-6 relative z-10 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_-14px_45px_rgba(0,0,0,0.38)] transition-all duration-300 ease-in-out max-h-[70%] overflow-y-auto shrink-0 border-t border-border">
         
         {/* Pull Handle */}
         <div className="w-12 h-1.5 bg-muted-foreground/40 rounded-full mx-auto mb-6 cursor-pointer" onClick={() => setIsDrawerOpen(!isDrawerOpen)} />
@@ -199,20 +199,20 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
           </div>
           <button 
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
-            className="p-2 bg-muted rounded-full text-muted-foreground hover:bg-muted/80 transition-colors"
+            className="p-2 bg-muted rounded-full text-foreground hover:bg-accent transition-colors border border-border"
           >
             {isDrawerOpen ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
           </button>
         </div>
 
         {/* Primary Info (Always visible) */}
-        <div className="flex items-center gap-4 mb-6 bg-primary/10 p-4 rounded-xl border border-primary/20">
+        <div className="flex items-center gap-4 mb-6 bg-muted/55 dark:bg-muted/35 p-4 rounded-xl border border-border">
           {booking.guide ? (
-            <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-200 border-2 border-white shadow-sm shrink-0">
+            <div className="w-14 h-14 rounded-full overflow-hidden bg-muted border-2 border-background shadow-sm shrink-0">
               <img src={(booking.guide as any).image} alt={(booking.guide as any).name} className="w-full h-full object-cover" />
             </div>
           ) : (
-            <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center shrink-0 border-2 border-white shadow-sm">
+            <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center shrink-0 border-2 border-background shadow-sm">
               <User className="h-6 w-6 text-primary" />
             </div>
           )}
@@ -235,18 +235,18 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
             <Button 
               onClick={() => onContactGuide(booking.guide)}
               size="icon" 
-              className="rounded-full w-12 h-12 bg-blue-600 hover:bg-blue-700 shadow-md shrink-0 transition-transform active:scale-95"
+              className="rounded-full w-12 h-12 !bg-primary hover:!bg-primary/90 !text-primary-foreground shadow-md shrink-0 transition-transform active:scale-95"
             >
-              <PhoneCall className="w-5 h-5 text-white" />
+              <PhoneCall className="w-5 h-5" />
             </Button>
           )}
         </div>
 
         {/* Safety PIN - Show prominently before trip starts */}
         {!isInProgress && user?.safetyPin && (
-          <div className="w-full bg-gray-900 border border-gray-800 rounded-xl p-4 text-center mb-6 shadow-sm">
+          <div className="w-full bg-muted/55 dark:bg-muted/35 border border-border rounded-xl p-4 text-center mb-6 shadow-sm">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1">Safety PIN</p>
-            <p className="text-3xl font-black text-white tracking-[0.3em]">{user.safetyPin}</p>
+            <p className="text-3xl font-black text-foreground tracking-[0.3em]">{user.safetyPin}</p>
             <p className="text-xs text-muted-foreground mt-2">Share this with your guide to start the trip</p>
           </div>
         )}
@@ -287,7 +287,7 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
             {!isInProgress && (
               <Button 
                 variant="outline" 
-                className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30 h-12 font-semibold transition-colors"
+                className="w-full bg-transparent text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/35 h-12 font-semibold transition-colors dark:text-red-400 dark:border-red-500/35 dark:hover:bg-red-500/10 dark:hover:text-red-300"
                 onClick={() => onCancelClick(booking._id)}
               >
                 <AlertTriangle className="w-4 h-4 mr-2" />
