@@ -31,6 +31,8 @@ import GuideRejected from "./pages/guide/GuideRejected";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminLogin from "./pages/admin/AdminLoginV2";
+import AdminForgotPassword from "./pages/admin/AdminForgotPassword";
+import AdminAcceptInvitation from "./pages/admin/AdminAcceptInvitation";
 
 import { useAuth } from "@/contexts/AuthContext";
 import "@/i18n";
@@ -74,6 +76,8 @@ const AppRoutes = () => {
 
         {/* ── Admin routes ──────────────────────────────────────────────── */}
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/forgot-password" element={<AdminForgotPassword />} />
+        <Route path="/admin/invite" element={<AdminAcceptInvitation />} />
         <Route path="/admin" element={
           <AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>
         } />

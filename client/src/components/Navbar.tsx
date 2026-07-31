@@ -12,6 +12,7 @@ import { useLocation } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
+import api from "@/lib/api";
 
 /**
  * Customer-only Navbar.
@@ -36,9 +37,9 @@ const Navbar = () => {
           <Button
             variant="outline"
             className="flex items-center gap-2"
-            onClick={() => {
-              localStorage.removeItem("admin_token");
-              navigate("/admin/login");
+            onClick={async () => {
+              try { await api.post("/admin/auth/logout"); } catch { /* Cookie may already be expired. */ }
+              navigate("/admin/login", { replace: true });
             }}
           >
             <LogOut className="h-4 w-4" />

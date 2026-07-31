@@ -12,6 +12,7 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+app.set('trust proxy', 1);
 
 // BL-3 fix: Add helmet for basic security headers
 app.use(helmet());
@@ -22,8 +23,8 @@ app.use(helmet());
 const corsMiddleware = cors({
   origin: process.env.CLIENT_URL || 'http://localhost:8080',
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-WellCare-Admin'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   optionsSuccessStatus: 200,
 });
 app.use(corsMiddleware);

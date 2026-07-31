@@ -1,7 +1,6 @@
 import api from "@/lib/api";
 import "@/styles/ui2.css";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { 
   Card, 
   CardContent, 
@@ -31,31 +30,30 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Check, X, Search, LogOut } from "lucide-react";
+import { Check, X, Search, Shield } from "lucide-react";
 import { Guide, GuideStatus } from "@/contexts/GuideAuthContext";
 import Navbar from "@/components/Navbar";
+import AdminAccountsPanel from "@/components/admin/AdminAccountsPanel";
 
 type GuideWithPassword = Guide & { _id: string };
+type CurrentAdmin = { id: string; email: string; role: "owner" | "admin"; };
 
 const AdminDashboard = () => {
   const { toast } = useToast();
-  const navigate = useNavigate();
   const [guides, setGuides] = useState<GuideWithPassword[]>([]);
   const [selectedGuide, setSelectedGuide] = useState<GuideWithPassword | null>(null);
+  const [currentAdmin, setCurrentAdmin] = useState<CurrentAdmin | null>(null);
 
-  const adminToken = localStorage.getItem("admin_token");
-  const authHeaders = { Authorization: `Bearer ${adminToken}` };
-
-  const handleAdminLogout = () => {
-    localStorage.removeItem("admin_token");
-    navigate("/admin/login");
-  };
   
   useEffect(() => {
     const fetchGuides = async () => {
       try {
-        const { data } = await api.get("/admin/guides", { headers: authHeaders });
-        setGuides(data);
+        const [guidesResponse, sessionResponse] = await Promise.all([
+          api.get("/admin/guides"),
+          api.get("/admin/auth/session"),
+        ]);
+        setGuides(guidesResponse.data);
+        setCurrentAdmin(sessionResponse.data.admin);
       } catch (err) {
         console.error("Failed to fetch guides", err);
       }
@@ -67,9 +65,9 @@ const AdminDashboard = () => {
 
   const updateGuideStatus = async (guideId: string, status: GuideStatus) => {
     try {
-      await api.put(`/admin/guides/${guideId}/status`, { status }, { headers: authHeaders });
+      await api.put(`/admin/guides/${guideId}/status`, { status });
   
-      const { data } = await api.get("/admin/guides", { headers: authHeaders });
+      const { data } = await api.get("/admin/guides");
       setGuides(data);
   
       toast({
@@ -116,6 +114,7 @@ const AdminDashboard = () => {
             <TabsTrigger value="rejected">
               Rejected Applications ({getRejectedGuides().length})
             </TabsTrigger>
+            {currentAdmin?.role === "owner" && <TabsTrigger value="administrators"><Shield className="mr-2 h-4 w-4" />Admin Accounts</TabsTrigger>}
           </TabsList>
           
           <TabsContent value="pending">
@@ -352,6 +351,7 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
           </TabsContent>
+          {currentAdmin?.role === "owner" && <TabsContent value="administrators"><AdminAccountsPanel /></TabsContent>}
         </Tabs>
       </div>
     </div>

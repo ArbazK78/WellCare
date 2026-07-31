@@ -7,7 +7,7 @@ const api = axios.create({
   // In local development, use Vite's same-origin proxy so phones on the LAN
   // do not incorrectly resolve localhost as the phone itself.
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
-  withCredentials: false,
+  withCredentials: true,
 });
 
 api.interceptors.request.use(
@@ -23,8 +23,12 @@ api.interceptors.request.use(
       (config.method === 'put' && /^\/bookings\/[^/]+\/status$/.test(config.url ?? '')) ||
       (config.method === 'post' && /^\/bookings\/[^/]+\/start-trip$/.test(config.url ?? ''));
 
+    if (isAdminEndpoint) {
+      config.headers['X-WellCare-Admin'] = '1';
+    }
+
     token = isAdminEndpoint
-      ? localStorage.getItem('admin_token')
+      ? null
       : isGuideEndpoint
         ? localStorage.getItem('guide_token')
         : localStorage.getItem('userToken');
@@ -36,9 +40,7 @@ api.interceptors.request.use(
 
         if (isExpired) {
           // FC-1 fix: Redirect guide to guide login, customer to customer login
-          if (isAdminEndpoint) {
-            localStorage.removeItem('admin_token');
-          } else if (isGuideEndpoint) {
+          if (isGuideEndpoint) {
             logoutGuide();
           } else {
             logoutCustomer();

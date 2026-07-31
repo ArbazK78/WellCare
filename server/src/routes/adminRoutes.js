@@ -1,99 +1,73 @@
-// server/src/routes/adminRoutes.js
 const express = require('express');
-const router = express.Router();
-const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 const Guide = require('../models/Guide');
 const verifyAdminToken = require('../middlewares/verifyAdminToken');
+const { requireOwner, requireAdminRequestHeader } = require('../middlewares/verifyAdminToken');
+const adminAuthController = require('../controllers/adminAuthController');
 
-// ---------------------------------------------------------------------------
-// POST /api/admin/login
-// Validates username + password from env vars, returns a signed admin JWT
-// ---------------------------------------------------------------------------
-router.post('/login', (req, res) => {
-  const { username, password } = req.body;
+const router = express.Router();
 
-  if (!username || !password) {
-    return res.status(400).json({ message: 'Username and password are required' });
-  }
-
-  const crypto = require('crypto');
-  const validUsername = process.env.ADMIN_USERNAME || '';
-  const validPassword = process.env.ADMIN_PASSWORD || '';
-
-  // BM-11 fix: Prevent timing attacks
-  let isMatch = true;
-  const bufUser = Buffer.from(username);
-  const bufValidUser = Buffer.from(validUsername);
-  if (bufUser.length !== bufValidUser.length || !crypto.timingSafeEqual(bufUser, bufValidUser)) {
-    isMatch = false;
-  }
-  const bufPass = Buffer.from(password);
-  const bufValidPass = Buffer.from(validPassword);
-  if (bufPass.length !== bufValidPass.length || !crypto.timingSafeEqual(bufPass, bufValidPass)) {
-    isMatch = false;
-  }
-
-  if (!isMatch) {
-    return res.status(401).json({ message: 'Invalid admin credentials' });
-  }
-
-  const token = jwt.sign(
-    { role: 'admin', username },
-    process.env.JWT_SECRET,
-    { expiresIn: '8h' }
-  );
-
-  res.json({ token, message: 'Admin login successful' });
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many sign-in attempts. Please wait before trying again.' },
 });
 
-// ---------------------------------------------------------------------------
-// GET /api/admin/verify
-// Lightweight route to verify admin token is still valid (used on page load)
-// ---------------------------------------------------------------------------
-router.get('/verify', verifyAdminToken, (req, res) => {
-  res.json({ valid: true, admin: req.admin.username });
+const recoveryLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many recovery attempts. Please wait before requesting another code.' },
 });
 
-// ---------------------------------------------------------------------------
-// GET /api/admin/guides — Get all guides (protected, was previously open)
-// ---------------------------------------------------------------------------
-router.get('/guides', verifyAdminToken, async (req, res) => {
+// Public administrator authentication endpoints.
+router.post('/auth/login', loginLimiter, adminAuthController.login);
+router.post('/auth/forgot-password', recoveryLimiter, adminAuthController.requestPasswordReset);
+router.post('/auth/reset-password', recoveryLimiter, adminAuthController.resetPassword);
+router.get('/auth/invitations/:token', adminAuthController.getInvitation);
+router.post('/auth/accept-invitation', recoveryLimiter, adminAuthController.acceptInvitation);
+
+// Cookie-backed session endpoints.
+router.get('/auth/session', verifyAdminToken, adminAuthController.session);
+router.post('/auth/logout', verifyAdminToken, requireAdminRequestHeader, adminAuthController.logout);
+router.get('/verify', verifyAdminToken, (req, res) => res.json({ valid: true, admin: { email: req.admin.email, role: req.admin.role } }));
+
+// Owner-only administrator governance.
+router.get('/accounts', verifyAdminToken, requireOwner, adminAuthController.listAdmins);
+router.post('/accounts/invitations', verifyAdminToken, requireOwner, requireAdminRequestHeader, adminAuthController.inviteAdmin);
+router.post('/accounts/:id/resend-invitation', verifyAdminToken, requireOwner, requireAdminRequestHeader, adminAuthController.resendInvitation);
+router.patch('/accounts/:id/status', verifyAdminToken, requireOwner, requireAdminRequestHeader, adminAuthController.updateAdminStatus);
+router.get('/audit-log', verifyAdminToken, requireOwner, adminAuthController.listAuditLog);
+
+// Existing guide administration operations.
+router.get('/guides', verifyAdminToken, async (_req, res) => {
   try {
     const guides = await Guide.find().select('-password');
     res.json(guides);
-  } catch (err) {
-    console.error('❌ Error fetching guides for admin:', err);
-    res.status(500).json({ message: 'Failed to fetch guides' });
+  } catch (error) {
+    console.error('Failed to fetch guides for admin:', error);
+    res.status(500).json({ message: 'Failed to fetch guides.' });
   }
 });
 
-// ---------------------------------------------------------------------------
-// PUT /api/admin/guides/:id/status — Approve or reject a guide (protected)
-// ---------------------------------------------------------------------------
-router.put('/guides/:id/status', verifyAdminToken, async (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
-
+router.put('/guides/:id/status', verifyAdminToken, requireAdminRequestHeader, async (req, res) => {
   const validStatuses = ['approved', 'rejected', 'pending'];
-  if (!validStatuses.includes(status)) {
-    return res.status(400).json({ message: 'Invalid status value' });
-  }
+  if (!validStatuses.includes(req.body.status)) return res.status(400).json({ message: 'Invalid status value.' });
 
   try {
     const updatedGuide = await Guide.findByIdAndUpdate(
-      id,
-      { status },
-      { new: true, runValidators: true }
+      req.params.id,
+      { status: req.body.status },
+      { new: true, runValidators: true },
     ).select('-password');
-
-    if (!updatedGuide) {
-      return res.status(404).json({ message: 'Guide not found' });
-    }
-
-    res.json({ message: `Guide ${status} successfully`, guide: updatedGuide });
-  } catch (err) {
-    console.error('❌ Error updating guide status:', err);
-    res.status(500).json({ message: 'Failed to update guide status' });
+    if (!updatedGuide) return res.status(404).json({ message: 'Guide not found.' });
+    return res.json({ message: `Guide ${req.body.status} successfully.`, guide: updatedGuide });
+  } catch (error) {
+    console.error('Failed to update guide status:', error);
+    return res.status(500).json({ message: 'Failed to update guide status.' });
   }
 });
 
