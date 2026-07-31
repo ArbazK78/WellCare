@@ -1,7 +1,16 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Input } from './input';
-import { MapPin } from 'lucide-react';
-import { useGeolocation } from '@/hooks/useGeolocation';
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Hospital, Loader2, MapPin } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useGeolocation } from "@/hooks/useGeolocation";
+import { Input } from "./input";
+
+export const MEDICAL_PLACE_TYPES = [
+  "hospital",
+  "general_hospital",
+  "medical_clinic",
+  "medical_center",
+  "doctor",
+] as const;
 
 export interface LocationData {
   name: string;
@@ -9,7 +18,18 @@ export interface LocationData {
   lat?: number;
   lng?: number;
   placeId?: string;
+  placeTypes?: string[];
+  primaryType?: string;
 }
+
+type Suggestion = {
+  key: string;
+  name: string;
+  address: string;
+  distanceMeters?: number | null;
+  place?: google.maps.places.Place;
+  prediction?: google.maps.places.PlacePrediction;
+};
 
 interface LocationAutocompleteProps {
   id: string;
@@ -18,7 +38,21 @@ interface LocationAutocompleteProps {
   onChange: (value: LocationData | string) => void;
   required?: boolean;
   customOrigin?: { lat: number; lng: number } | null;
+  purpose?: "general" | "medical";
 }
+
+const isMedicalPlace = (types: readonly string[] = []) =>
+  types.some((type) => MEDICAL_PLACE_TYPES.includes(type as (typeof MEDICAL_PLACE_TYPES)[number]));
+
+const toLocationData = (place: google.maps.places.Place): LocationData => ({
+  name: place.displayName || "Medical facility",
+  address: place.formattedAddress || "",
+  lat: place.location?.lat(),
+  lng: place.location?.lng(),
+  placeId: place.id,
+  placeTypes: place.types || [],
+  primaryType: place.primaryType || undefined,
+});
 
 export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
   id,
@@ -26,130 +60,178 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
   value,
   onChange,
   required,
-  customOrigin
+  customOrigin,
+  purpose = "general",
 }) => {
+  const { toast } = useToast();
   const { location: userLocation } = useGeolocation();
-  
-  const [inputValue, setInputValue] = useState(typeof value === 'string' ? value : value?.name || '');
-  const [predictions, setPredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
+  const [inputValue, setInputValue] = useState(typeof value === "string" ? value : value?.name || "");
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showingNearby, setShowingNearby] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  
-  const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
-  const placesService = useRef<google.maps.places.PlacesService | null>(null);
-  
-  // Initialize services when google maps script is loaded
-  useEffect(() => {
-    if (window.google && window.google.maps && window.google.maps.places && !autocompleteService.current) {
-      autocompleteService.current = new window.google.maps.places.AutocompleteService();
-      // PlacesService requires a DOM element to attach to
-      placesService.current = new window.google.maps.places.PlacesService(document.createElement('div'));
-    }
-  }, [window.google]); // This ensures it initializes when the script finishes loading
+  const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+  const requestSequenceRef = useRef(0);
 
-  // Sync prop value to input
+  const activeOrigin = customOrigin || userLocation;
+
   useEffect(() => {
-    const newVal = typeof value === 'string' ? value : value?.name || '';
-    if (newVal !== inputValue) {
-      setInputValue(newVal);
-    }
+    const nextValue = typeof value === "string" ? value : value?.name || "";
+    setInputValue((current) => current === nextValue ? current : nextValue);
   }, [value]);
 
-  // Click outside to close dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) setIsOpen(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const fetchPredictions = useCallback((val: string, location: Coordinates | null) => {
-    if (!val.trim()) {
-      setPredictions([]);
+  const ensureSessionToken = useCallback(async () => {
+    if (!sessionTokenRef.current) {
+      const { AutocompleteSessionToken } = await google.maps.importLibrary("places") as google.maps.PlacesLibrary;
+      sessionTokenRef.current = new AutocompleteSessionToken();
+    }
+    return sessionTokenRef.current;
+  }, []);
+
+  const fetchPredictions = useCallback(async (input: string) => {
+    const sequence = ++requestSequenceRef.current;
+    if (!input.trim() || !window.google?.maps?.places) {
+      setSuggestions([]);
       setIsOpen(false);
       return;
     }
 
-    if (autocompleteService.current) {
-      const request: google.maps.places.AutocompletionRequest = {
-        input: val,
-        types: ['geocode', 'establishment'],
+    setIsLoading(true);
+    setShowingNearby(false);
+    try {
+      const { AutocompleteSuggestion } = await google.maps.importLibrary("places") as google.maps.PlacesLibrary;
+      const sessionToken = await ensureSessionToken();
+      const request: google.maps.places.AutocompleteRequest = {
+        input,
+        includedRegionCodes: ["in"],
+        sessionToken,
       };
-      
-      // Determine which location to use: customOrigin takes priority over GPS userLocation
-      const activeLocation = customOrigin || location;
-
-      // Restrict results strictly to India (Prevents Finland/London matches)
-      request.componentRestrictions = { country: 'in' };
-
-      // Inject GPS location for distance tracking and strict biasing
-      if (activeLocation) {
-        // Use LatLngLiteral which is safer and fully supported by the API
-        const originLiteral = { lat: activeLocation.lat, lng: activeLocation.lng };
-        request.origin = new window.google.maps.LatLng(originLiteral.lat, originLiteral.lng);
-        
-        // Use locationBias instead of Restriction. This heavily prioritizes the 50km radius, 
-        // but still allows users to search for cities like Delhi or Mumbai when needed.
-        request.locationBias = {
-          radius: 50000, 
-          center: originLiteral
-        };
+      if (purpose === "medical") request.includedPrimaryTypes = [...MEDICAL_PLACE_TYPES];
+      if (activeOrigin) {
+        request.origin = activeOrigin;
+        request.locationBias = { center: activeOrigin, radius: 50000 };
       }
 
-      autocompleteService.current.getPlacePredictions(request, (results, status) => {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
-          setPredictions(results);
-          setIsOpen(true);
-        } else {
-          setPredictions([]);
-        }
+      const response = await AutocompleteSuggestion.fetchAutocompleteSuggestions(request);
+      if (sequence !== requestSequenceRef.current) return;
+      const nextSuggestions = response.suggestions
+        .map((item) => item.placePrediction)
+        .filter((prediction): prediction is google.maps.places.PlacePrediction => Boolean(prediction))
+        .map((prediction) => ({
+          key: prediction.placeId,
+          name: prediction.mainText?.toString() || prediction.text.toString(),
+          address: prediction.secondaryText?.toString() || "",
+          distanceMeters: prediction.distanceMeters,
+          prediction,
+        }));
+      setSuggestions(nextSuggestions);
+      setIsOpen(nextSuggestions.length > 0);
+    } catch (error) {
+      console.error("Unable to load place suggestions", error);
+      if (sequence === requestSequenceRef.current) setSuggestions([]);
+    } finally {
+      if (sequence === requestSequenceRef.current) setIsLoading(false);
+    }
+  }, [activeOrigin, ensureSessionToken, purpose]);
+
+  const fetchNearbyMedicalPlaces = useCallback(async () => {
+    if (purpose !== "medical" || !activeOrigin || !window.google?.maps?.places) return;
+    const sequence = ++requestSequenceRef.current;
+    setIsLoading(true);
+    setShowingNearby(true);
+    try {
+      const { Place, SearchNearbyRankPreference } = await google.maps.importLibrary("places") as google.maps.PlacesLibrary;
+      const { places } = await Place.searchNearby({
+        fields: ["id", "displayName", "formattedAddress", "location", "types", "primaryType"],
+        locationRestriction: { center: activeOrigin, radius: 15000 },
+        includedTypes: [...MEDICAL_PLACE_TYPES],
+        maxResultCount: 8,
+        rankPreference: SearchNearbyRankPreference.DISTANCE,
+        region: "in",
       });
+      if (sequence !== requestSequenceRef.current) return;
+      const nextSuggestions = places.filter((place) => isMedicalPlace(place.types)).map((place) => ({
+        key: place.id,
+        name: place.displayName || "Medical facility",
+        address: place.formattedAddress || "",
+        place,
+      }));
+      setSuggestions(nextSuggestions);
+      setIsOpen(nextSuggestions.length > 0);
+    } catch (error) {
+      console.error("Unable to load nearby medical facilities", error);
+      if (sequence === requestSequenceRef.current) setSuggestions([]);
+    } finally {
+      if (sequence === requestSequenceRef.current) setIsLoading(false);
     }
-  }, []);
+  }, [activeOrigin, purpose]);
 
-  // Re-fetch predictions if the customOrigin or user's GPS location finally resolves while they are typing
   useEffect(() => {
-    if (inputValue && isOpen) {
-      fetchPredictions(inputValue, customOrigin || userLocation);
-    }
-  }, [userLocation, customOrigin, fetchPredictions]);
+    if (!isOpen || !inputValue.trim()) return;
+    const timer = window.setTimeout(() => fetchPredictions(inputValue), 180);
+    return () => window.clearTimeout(timer);
+  }, [activeOrigin, fetchPredictions, inputValue, isOpen]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setInputValue(val);
-    onChange(val); // Initially update parent as string
-    fetchPredictions(val, customOrigin || userLocation);
-  };
-
-  const handleSelect = (prediction: google.maps.places.AutocompletePrediction) => {
-    const name = prediction.structured_formatting.main_text;
-    setInputValue(name);
-    setIsOpen(false);
-
-    if (placesService.current && prediction.place_id) {
-      placesService.current.getDetails(
-        { placeId: prediction.place_id, fields: ['formatted_address', 'name', 'geometry', 'place_id'] },
-        (place, status) => {
-          if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
-            onChange({
-              name: place.name || name,
-              address: place.formatted_address || '',
-              lat: place.geometry?.location?.lat(),
-              lng: place.geometry?.location?.lng(),
-              placeId: place.place_id || prediction.place_id
-            });
-          } else {
-            onChange({ name, address: prediction.description });
-          }
-        }
-      );
-    } else {
-      onChange({ name, address: prediction.description });
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.value;
+    setInputValue(nextValue);
+    onChange(nextValue);
+    setIsOpen(Boolean(nextValue.trim()));
+    if (!nextValue.trim()) {
+      setSuggestions([]);
+      if (purpose === "medical") void fetchNearbyMedicalPlaces();
     }
   };
+
+  const handleFocus = () => {
+    if (inputValue.trim()) {
+      setIsOpen(true);
+      void fetchPredictions(inputValue);
+    } else if (purpose === "medical") {
+      void fetchNearbyMedicalPlaces();
+    }
+  };
+
+  const handleSelect = async (suggestion: Suggestion) => {
+    setIsLoading(true);
+    try {
+      const place = suggestion.place || suggestion.prediction?.toPlace();
+      if (!place) throw new Error("Place details are unavailable");
+      if (!suggestion.place) {
+        await place.fetchFields({ fields: ["id", "displayName", "formattedAddress", "location", "types", "primaryType"] });
+      }
+      if (purpose === "medical" && !isMedicalPlace(place.types)) {
+        toast({
+          title: "Choose a hospital or clinic",
+          description: "WellCare destinations must be medical facilities verified by Google Maps.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const location = toLocationData(place);
+      setInputValue(location.name);
+      onChange(location);
+      setSuggestions([]);
+      setIsOpen(false);
+      sessionTokenRef.current = null;
+    } catch (error) {
+      console.error("Unable to select place", error);
+      toast({ title: "Place unavailable", description: "Please choose another suggestion.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const ResultIcon = purpose === "medical" ? Hospital : MapPin;
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
@@ -158,43 +240,45 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
         placeholder={placeholder}
         value={inputValue}
         onChange={handleInputChange}
-        onFocus={() => { if (predictions.length > 0) setIsOpen(true); }}
+        onFocus={handleFocus}
         required={required}
         autoComplete="off"
       />
-      
-      {isOpen && predictions.length > 0 && (
-        <div className="absolute top-full mt-1 w-full bg-popover text-popover-foreground rounded-xl shadow-xl border border-border overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
+
+      {isLoading && <Loader2 className="pointer-events-none absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />}
+
+      {isOpen && suggestions.length > 0 && (
+        <div className="absolute top-full z-50 mt-1 w-full overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl animate-in fade-in zoom-in-95 duration-100">
+          {showingNearby && (
+            <div className="border-b border-border/70 bg-primary/5 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-primary">
+              Nearby hospitals &amp; clinics
+            </div>
+          )}
           <ul className="max-h-64 overflow-y-auto py-1">
-            {predictions.map((p) => (
+            {suggestions.map((suggestion) => (
               <li
-                key={p.place_id}
-                onClick={() => handleSelect(p)}
-                className="px-3 py-2 hover:bg-secondary/70 cursor-pointer flex items-center justify-between group transition-colors border-b border-border/60 last:border-0"
+                key={suggestion.key}
+                onClick={() => void handleSelect(suggestion)}
+                className="group flex cursor-pointer items-center justify-between border-b border-border/60 px-3 py-2 transition-colors last:border-0 hover:bg-secondary/70"
               >
-                <div className="flex items-start gap-3 overflow-hidden">
-                  <div className="mt-0.5 shrink-0 p-1.5 bg-muted rounded-full text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                    <MapPin className="h-4 w-4" />
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="mt-0.5 shrink-0 rounded-full bg-muted p-1.5 text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+                    <ResultIcon className="h-4 w-4" />
                   </div>
-                  <div className="overflow-hidden">
-                    <p className="text-sm font-semibold text-popover-foreground truncate group-hover:text-primary transition-colors">
-                      {p.structured_formatting.main_text}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">
-                      {p.structured_formatting.secondary_text}
-                    </p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-popover-foreground transition-colors group-hover:text-primary">{suggestion.name}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{suggestion.address}</p>
                   </div>
                 </div>
-                {p.distance_meters !== undefined && (
-                  <div className="shrink-0 ml-3 text-right">
-                    <span className="text-[11px] font-semibold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full whitespace-nowrap">
-                      {(p.distance_meters / 1000).toFixed(1)} km
-                    </span>
-                  </div>
+                {suggestion.distanceMeters != null && (
+                  <span className="ml-3 shrink-0 whitespace-nowrap rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                    {(suggestion.distanceMeters / 1000).toFixed(1)} km
+                  </span>
                 )}
               </li>
             ))}
           </ul>
+          <div className="border-t border-border/60 px-3 py-1.5 text-right text-[10px] font-medium text-muted-foreground">Powered by Google</div>
         </div>
       )}
     </div>

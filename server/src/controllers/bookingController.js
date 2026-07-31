@@ -6,6 +6,7 @@ const dispatchService = require('../services/dispatchService');
 const scheduledBookingService = require('../services/scheduledBookingService');
 const reservationService = require('../services/reservationService');
 const fareCalculationService = require('../services/fareCalculationService');
+const medicalPlaceService = require('../services/medicalPlaceService');
 const notificationService = require('../services/notificationService');
 const NotificationEvent = require('../models/NotificationEvent');
 const {
@@ -85,6 +86,10 @@ exports.createBooking = async (req, res) => {
       };
     }
 
+    // Never trust the browser-supplied place category. Resolve the Google Place
+    // ID on the server and persist the authoritative medical classification.
+    const verifiedDestination = await medicalPlaceService.verifyDestination(destinationAddress);
+
     // Matching remains intentionally broad until guide capabilities are
     // standardised. Scheduled bookings are matched at release time.
     let eligibleGuideIds = [];
@@ -110,6 +115,9 @@ exports.createBooking = async (req, res) => {
       fareBreakdown: fare.fareBreakdown,
       pickupLocation,
       destinationAddress,
+      destinationPlaceId: verifiedDestination.placeId,
+      destinationPlaceTypes: verifiedDestination.placeTypes,
+      destinationPrimaryType: verifiedDestination.primaryType,
       dropBack: dropBack || false,
       bookingMode: normalizedMode,
       scheduledAt,
@@ -144,6 +152,9 @@ exports.createBooking = async (req, res) => {
     }
     res.status(201).json(savedBooking);
   } catch (error) {
+    if (error instanceof medicalPlaceService.MedicalDestinationError) {
+      return res.status(error.statusCode).json({ message: error.message, code: error.code });
+    }
     if (error instanceof fareCalculationService.FareCalculationError) {
       return res.status(error.statusCode).json({ message: error.message, code: error.code });
     }
@@ -167,6 +178,9 @@ exports.estimateFare = async (req, res) => {
     });
     return res.json(estimate);
   } catch (error) {
+    if (error instanceof medicalPlaceService.MedicalDestinationError) {
+      return res.status(error.statusCode).json({ message: error.message, code: error.code });
+    }
     if (error instanceof fareCalculationService.FareCalculationError) {
       return res.status(error.statusCode).json({ message: error.message, code: error.code });
     }

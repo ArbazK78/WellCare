@@ -81,6 +81,10 @@ const BookingSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  // Authoritative Google Places classification captured when the booking is created.
+  destinationPlaceId: { type: String },
+  destinationPlaceTypes: [{ type: String }],
+  destinationPrimaryType: { type: String },
   // Legacy field — kept for backward compat with existing DB documents.
   // New bookings do not populate this field.
   location: {

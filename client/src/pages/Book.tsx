@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MapPin, PhoneCall, Clock, Calendar, User, Mail, Navigation, Home, ChevronDown, CheckCircle2, Loader2 } from "lucide-react";
+import { MapPin, PhoneCall, Clock, Calendar, User, Mail, Navigation, Home, ChevronDown, CheckCircle2, Loader2, Hospital } from "lucide-react";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/AppNavbar";
@@ -23,7 +23,7 @@ import { useBookings, BookingService } from "@/contexts/BookingContext";
 import { format } from "date-fns";
 import { useJsApiLoader } from "@react-google-maps/api";
 import { GOOGLE_MAPS_LIBRARIES, GOOGLE_MAPS_LOADER_ID } from "@/lib/googleMapsLoader";
-import { LocationAutocomplete, LocationData } from "@/components/ui/LocationAutocomplete";
+import { LocationAutocomplete, LocationData, MEDICAL_PLACE_TYPES } from "@/components/ui/LocationAutocomplete";
 import {
   Popover,
   PopoverContent,
@@ -217,12 +217,18 @@ const Book = () => {
     }
   };
 
+  const destinationIsMedical = typeof formData.destinationAddress === "object" &&
+    Boolean(formData.destinationAddress.placeId) &&
+    Boolean(formData.destinationAddress.placeTypes?.some((type) =>
+      MEDICAL_PLACE_TYPES.includes(type as (typeof MEDICAL_PLACE_TYPES)[number])
+    ));
+
   // ── Step 1 validation ──
   const step1Valid =
     Boolean(formData.name?.toString().trim()) &&
     Boolean(formData.phone?.toString().trim()) &&
     Boolean(typeof formData.pickupLocation === 'string' ? formData.pickupLocation.trim() : formData.pickupLocation?.name?.trim()) &&
-    Boolean(typeof formData.destinationAddress === 'string' ? formData.destinationAddress.trim() : formData.destinationAddress?.name?.trim());
+    destinationIsMedical;
 
   // Fetch the customer-facing estimate only on the final step. The server
   // recalculates it again during creation and remains the pricing authority.
@@ -295,6 +301,15 @@ const Book = () => {
   // Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!destinationIsMedical) {
+      toast({
+        title: "Choose a hospital or clinic",
+        description: "Select a Google-verified medical facility from the destination suggestions.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (!formData.vehicleType) {
       toast({ title: "Select a vehicle", description: "Please choose Scooter or Cab to continue.", variant: "destructive" });
@@ -510,7 +525,7 @@ const Book = () => {
 
                       <div className="space-y-2">
                         <Label htmlFor="destination" className="flex items-center gap-2">
-                          <Navigation className="h-4 w-4 text-green-600" /> Destination / Hospital
+                          <Hospital className="h-4 w-4 text-green-600" /> Hospital or Clinic
                         </Label>
                         {isLoaded ? (
                           <LocationAutocomplete
@@ -518,6 +533,7 @@ const Book = () => {
                             placeholder="Which hospital or clinic are you going to?"
                             value={formData.destinationAddress}
                             onChange={(val) => handleChange("destinationAddress", val)}
+                            purpose="medical"
                             customOrigin={
                               typeof formData.pickupLocation === 'object' && formData.pickupLocation?.lat && formData.pickupLocation?.lng 
                                 ? { lat: formData.pickupLocation.lat, lng: formData.pickupLocation.lng }
@@ -528,12 +544,13 @@ const Book = () => {
                         ) : (
                           <Input
                             id="destination"
-                            placeholder="Which hospital or clinic are you going to?"
-                            value={formData.destinationAddress}
-                            onChange={(e) => handleChange("destinationAddress", e.target.value)}
+                            placeholder="Loading verified medical facilities..."
+                            value=""
+                            disabled
                             required
                           />
                         )}
+                        <p className="text-xs text-muted-foreground">Only Google-verified hospitals and clinics can be selected.</p>
                       </div>
 
                       {/* Drop-back home */}
