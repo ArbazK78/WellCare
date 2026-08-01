@@ -69,6 +69,8 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
   const [routeMode, setRouteMode] = useState<'pickup' | 'dropoff' | null>(null);
   const [isArriving, setIsArriving] = useState(false);
   const mapRef = useRef<google.maps.Map | null>(null);
+  const [isMapReady, setIsMapReady] = useState(false);
+  const lastFittedRouteRef = useRef<string | null>(null);
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
@@ -168,8 +170,22 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
     setIsCompleting(false);
   };
 
-  // Center map on guide if no route is loaded yet
-  const defaultCenter = guideLocation || { lat: 20.5937, lng: 78.9629 };
+  const initialMapCenter = guideLocation
+    || (pickupData.lat && pickupData.lng ? { lat: pickupData.lat, lng: pickupData.lng } : null)
+    || { lat: 20.5937, lng: 78.9629 };
+
+  useEffect(() => {
+    if (!isMapReady || !directions || !routeMode || !mapRef.current) return;
+
+    const routeKey = `${booking._id}:${routeMode}`;
+    if (lastFittedRouteRef.current === routeKey) return;
+
+    const routeBounds = directions.routes[0]?.bounds;
+    if (routeBounds) {
+      mapRef.current.fitBounds(routeBounds, 48);
+      lastFittedRouteRef.current = routeKey;
+    }
+  }, [booking._id, directions, isMapReady, routeMode]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] w-full max-w-lg mx-auto overflow-hidden bg-background rounded-2xl shadow-xl relative mt-4 border border-border">
@@ -183,10 +199,17 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
         ) : (
           <GoogleMap
             mapContainerStyle={containerStyle}
-            center={defaultCenter}
-            zoom={16}
             options={mapOptions}
-            onLoad={(map) => { mapRef.current = map; }}
+            onLoad={(map) => {
+              mapRef.current = map;
+              map.setCenter(initialMapCenter);
+              map.setZoom(16);
+              setIsMapReady(true);
+            }}
+            onUnmount={() => {
+              mapRef.current = null;
+              setIsMapReady(false);
+            }}
           >
             {directions && (
               <>
@@ -194,6 +217,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
                   directions={directions} 
                   options={{
                     suppressMarkers: true,
+                    preserveViewport: true,
                     polylineOptions: {
                       strokeColor: '#3b82f6',
                       strokeWeight: 6,
@@ -260,7 +284,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
               size="icon" 
               className="rounded-full w-10 h-10 border-border bg-background/60 text-foreground hover:bg-accent hover:text-accent-foreground dark:bg-background/30"
               onClick={() => {
-                const phone = booking.customer?.phone || (booking as any).phone;
+                const phone = booking.contactPhone || booking.customer?.phone || (booking as any).phone;
                 if (phone) window.open(`tel:${phone}`);
               }}
             >

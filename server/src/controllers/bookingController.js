@@ -2,11 +2,13 @@
 
 const Booking = require('../models/Booking');
 const Guide = require('../models/Guide');
+const User = require('../models/User');
 const dispatchService = require('../services/dispatchService');
 const scheduledBookingService = require('../services/scheduledBookingService');
 const reservationService = require('../services/reservationService');
 const fareCalculationService = require('../services/fareCalculationService');
 const medicalPlaceService = require('../services/medicalPlaceService');
+const bookingPartyService = require('../services/bookingPartyService');
 const notificationService = require('../services/notificationService');
 const NotificationEvent = require('../models/NotificationEvent');
 const {
@@ -28,7 +30,6 @@ const generateBookingRefId = () => `B${Date.now()}-${crypto.randomBytes(2).toStr
 exports.createBooking = async (req, res) => {
   try {
     const {
-      name,
       date,
       time,
       pickupLocation,
@@ -37,13 +38,12 @@ exports.createBooking = async (req, res) => {
       dropBack,
       waitingHours,
       bookingMode,
+      bookingFor,
+      passenger,
       metadata,
     } = req.body;
-
-    console.log("📥 Received booking payload:", req.body);
-
     const normalizedMode = bookingMode === 'schedule' ? 'schedule' : 'now';
-    const requiredValues = { name, date, time, pickupLocation, destinationAddress, vehicleType };
+    const requiredValues = { date, time, pickupLocation, destinationAddress, vehicleType };
     const missingField = Object.entries(requiredValues).find(([, value]) => !value);
     if (missingField) {
       return res.status(400).json({ message: `${missingField[0]} is required` });
@@ -86,6 +86,16 @@ exports.createBooking = async (req, res) => {
       };
     }
 
+    const customerProfile = await User.findById(req.userId).select('name phone').lean();
+    if (!customerProfile) {
+      return res.status(404).json({ message: 'Customer account not found' });
+    }
+    const bookingParty = bookingPartyService.resolveBookingParty({
+      bookingFor,
+      passenger,
+      customer: customerProfile,
+    });
+
     // Never trust the browser-supplied place category. Resolve the Google Place
     // ID on the server and persist the authoritative medical classification.
     const verifiedDestination = await medicalPlaceService.verifyDestination(destinationAddress);
@@ -126,7 +136,9 @@ exports.createBooking = async (req, res) => {
       ...reservationFields,
       eligibleGuides: eligibleGuideIds,
       customer: req.userId,
-      name,
+      bookingFor: bookingParty.bookingFor,
+      name: bookingParty.name,
+      contactPhone: bookingParty.contactPhone,
       date,
       time,
       waitingHours: waitingHours || 0,
@@ -152,6 +164,9 @@ exports.createBooking = async (req, res) => {
     }
     res.status(201).json(savedBooking);
   } catch (error) {
+    if (error instanceof bookingPartyService.BookingPartyError) {
+      return res.status(error.statusCode).json({ message: error.message, code: error.code });
+    }
     if (error instanceof medicalPlaceService.MedicalDestinationError) {
       return res.status(error.statusCode).json({ message: error.message, code: error.code });
     }
@@ -178,6 +193,7 @@ exports.estimateFare = async (req, res) => {
     });
     return res.json(estimate);
   } catch (error) {
+
     if (error instanceof medicalPlaceService.MedicalDestinationError) {
       return res.status(error.statusCode).json({ message: error.message, code: error.code });
     }

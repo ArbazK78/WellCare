@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MapPin, PhoneCall, Clock, Calendar, User, Mail, Navigation, Home, ChevronDown, CheckCircle2, Loader2, Hospital } from "lucide-react";
+import { MapPin, Clock, Calendar, UserPlus, Navigation, Home, ChevronDown, CheckCircle2, Loader2, Hospital } from "lucide-react";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/AppNavbar";
@@ -137,7 +137,7 @@ const Book = () => {
   const locationState = useLocation();
   const navigate      = useNavigate();
   const { toast }     = useToast();
-  const { userPhone, userName, userEmail } = useAuth();
+  const { userPhone, userName } = useAuth();
   const { refreshBookings } = useBookings();
 
   const [step, setStep] = useState(1);
@@ -157,10 +157,11 @@ const Book = () => {
     dropoffTime: "",
   });
 
+  const [bookingFor, setBookingFor] = useState<"self" | "other">("self");
+
   const [formData, setFormData] = useState({
-    name:               userName || "",
-    phone:              userPhone || "",
-    email:              userEmail || "",
+    passengerName:      "",
+    passengerPhone:     "",
     pickupLocation:     "" as LocationData | string,
     destinationAddress: "" as LocationData | string,
     dropBack:           false,
@@ -185,9 +186,9 @@ const Book = () => {
       const token   = localStorage.getItem("userToken");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const response = await api.get("/bookings/active", { headers });
-      
+
       const activeBookings = response.data.activeBookings || [];
-      
+
       // Check if any active booking is happening "Today"
       const todayStr = format(new Date(), "yyyy-MM-dd");
       const hasCurrentBooking = activeBookings.some((b: any) => b.date && b.date.startsWith(todayStr));
@@ -197,8 +198,8 @@ const Book = () => {
           title: "Booking Blocked",
           description: "You already have an active booking. Book once you finish that or schedule a booking for later.",
           action: (
-            <ToastAction 
-              altText="Schedule for later" 
+            <ToastAction
+              altText="Schedule for later"
               onClick={() => {
                 setBookingMode('schedule');
                 setStep(2);
@@ -223,13 +224,18 @@ const Book = () => {
       MEDICAL_PLACE_TYPES.includes(type as (typeof MEDICAL_PLACE_TYPES)[number])
     ));
 
-  // ── Step 1 validation ──
+  const isBookingForSomeoneElse = bookingFor === "other";
+  const passengerPhoneDigits = formData.passengerPhone.replace(/\D/g, "");
+  const travelerName = isBookingForSomeoneElse ? formData.passengerName.trim() : (userName || "").trim();
+  const travelerPhone = isBookingForSomeoneElse ? formData.passengerPhone.trim() : (userPhone || "").trim();
+  const bookingPartyValid = travelerName.length >= 2 &&
+    (isBookingForSomeoneElse ? passengerPhoneDigits.length >= 10 && passengerPhoneDigits.length <= 15 : Boolean(travelerPhone));
+
+  // Step 1 validation
   const step1Valid =
-    Boolean(formData.name?.toString().trim()) &&
-    Boolean(formData.phone?.toString().trim()) &&
+    bookingPartyValid &&
     Boolean(typeof formData.pickupLocation === 'string' ? formData.pickupLocation.trim() : formData.pickupLocation?.name?.trim()) &&
     destinationIsMedical;
-
   // Fetch the customer-facing estimate only on the final step. The server
   // recalculates it again during creation and remains the pricing authority.
   useEffect(() => {
@@ -319,9 +325,14 @@ const Book = () => {
     setIsSubmitting(true);
     try {
       const response = await api.post("/bookings", {
-        name:               userName || formData.name,
-        date:               bookingMode === 'schedule' && scheduleData.pickupDate ? format(scheduleData.pickupDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"), 
-        time:               bookingMode === 'schedule' && scheduleData.pickupTime ? scheduleData.pickupTime : format(new Date(), "HH:mm"), 
+        name:               travelerName,
+        bookingFor,
+        passenger:          isBookingForSomeoneElse ? {
+          name: formData.passengerName.trim(),
+          phone: formData.passengerPhone.trim(),
+        } : undefined,
+        date:               bookingMode === 'schedule' && scheduleData.pickupDate ? format(scheduleData.pickupDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+        time:               bookingMode === 'schedule' && scheduleData.pickupTime ? scheduleData.pickupTime : format(new Date(), "HH:mm"),
         pickupLocation:     serializeLocation(formData.pickupLocation),
         destinationAddress: serializeLocation(formData.destinationAddress),
         vehicleType:        formData.vehicleType,
@@ -410,7 +421,7 @@ const Book = () => {
                       onClick={() => {
                         setBookingMode(tempBookingMode);
                         setModePopoverOpen(false);
-                        setStep(1); 
+                        setStep(1);
                       }}
                     >
                       Done
@@ -421,15 +432,15 @@ const Book = () => {
             </div>
           )}
 
-          <StepIndicator 
-            current={step} 
-            steps={bookingMode === 'now' ? ["Your Details", "Choose Vehicle"] : ["Your Details", "Choose Date", "Choose Vehicle"]} 
+          <StepIndicator
+            current={step}
+            steps={bookingMode === 'now' ? ["Journey", "Choose Vehicle"] : ["Journey", "Choose Date", "Choose Vehicle"]}
           />
 
           <Card className="surface-card">
             <CardHeader>
               <CardTitle className="text-xl">
-                {step === 1 ? "Your Details & Journey" : 
+                {step === 1 ? "Plan Your Visit" :
                  step === 2 && bookingMode === 'schedule' ? "Choose Date & Time" :
                  "Choose Your Vehicle"}
               </CardTitle>
@@ -446,56 +457,75 @@ const Book = () => {
                 {step === 1 && (
                   <div className="space-y-6">
 
-                    {/* Personal info */}
+                    {/* Booking party */}
                     <div className="space-y-4">
-                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Personal Information</h3>
+                      <button
+                        type="button"
+                        aria-pressed={isBookingForSomeoneElse}
+                        aria-expanded={isBookingForSomeoneElse}
+                        onClick={() => setBookingFor((current) => current === "self" ? "other" : "self")}
+                        className={cn(
+                          "w-full rounded-2xl border p-4 text-left transition-all duration-200",
+                          isBookingForSomeoneElse
+                            ? "border-primary bg-primary/10 shadow-sm ring-2 ring-primary/15"
+                            : "border-border bg-secondary/25 hover:border-primary/40 hover:bg-secondary/45"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={cn(
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
+                            isBookingForSomeoneElse ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                          )}>
+                            <UserPlus className="h-5 w-5" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-semibold text-foreground">Book for someone else</span>
+                            <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                              Add their contact details if another person will receive the assistance.
+                            </span>
+                          </span>
+                          {isBookingForSomeoneElse && (
+                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground">
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Selected
+                            </span>
+                          )}
+                        </div>
+                      </button>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="name" className="flex items-center gap-2">
-                          <User className="h-4 w-4" /> Full Name
-                        </Label>
-                        <Input
-                          id="name"
-                          placeholder="Enter your full name"
-                          value={formData.name}
-                          readOnly
-                          className="cursor-not-allowed focus-visible:ring-0 focus-visible:ring-offset-0"
-                          required
-                        />
-                        {userName && <p className="text-xs text-gray-400">Auto-filled from profile. Change details in your dashboard.</p>}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="phone" className="flex items-center gap-2">
-                          <PhoneCall className="h-4 w-4" /> Phone Number
-                        </Label>
-                        <Input
-                          id="phone"
-                          placeholder="Enter your phone number"
-                          value={formData.phone}
-                          readOnly
-                          className="cursor-not-allowed focus-visible:ring-0 focus-visible:ring-offset-0"
-                          required
-                        />
-                        {userPhone && <p className="text-xs text-gray-400">Auto-filled from profile. Change details in your dashboard.</p>}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="email" className="flex items-center gap-2">
-                          <Mail className="h-4 w-4" /> Email Address
-                        </Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          placeholder="Enter your email address"
-                          value={formData.email}
-                          readOnly
-                          className="cursor-not-allowed focus-visible:ring-0 focus-visible:ring-offset-0"
-                        />
-                        {userEmail && <p className="text-xs text-gray-400">Auto-filled from profile. Change details in your dashboard.</p>}
-                      </div>
+                      {isBookingForSomeoneElse && (
+                        <div className="grid gap-4 rounded-2xl border border-primary/20 bg-primary/[0.04] p-4 animate-in fade-in slide-in-from-top-2 duration-200 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="passengerName">Full Name</Label>
+                            <Input
+                              id="passengerName"
+                              placeholder="Person receiving assistance"
+                              value={formData.passengerName}
+                              onChange={(event) => handleChange("passengerName", event.target.value)}
+                              autoComplete="name"
+                              maxLength={80}
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="passengerPhone">Mobile Number</Label>
+                            <Input
+                              id="passengerPhone"
+                              type="tel"
+                              inputMode="tel"
+                              placeholder="Their contact number"
+                              value={formData.passengerPhone}
+                              onChange={(event) => handleChange("passengerPhone", event.target.value.replace(/[^\d+()\-\s]/g, ""))}
+                              autoComplete="tel"
+                              maxLength={20}
+                              required
+                            />
+                          </div>
+                          <p className="text-xs leading-relaxed text-muted-foreground sm:col-span-2">
+                            The assigned guide will use this number for trip coordination. Your account remains responsible for the booking.
+                          </p>
+                        </div>
+                      )}
                     </div>
-
                     {/* Journey */}
                     <div className="space-y-4">
                       <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Journey Details</h3>
@@ -535,7 +565,7 @@ const Book = () => {
                             onChange={(val) => handleChange("destinationAddress", val)}
                             purpose="medical"
                             customOrigin={
-                              typeof formData.pickupLocation === 'object' && formData.pickupLocation?.lat && formData.pickupLocation?.lng 
+                              typeof formData.pickupLocation === 'object' && formData.pickupLocation?.lat && formData.pickupLocation?.lng
                                 ? { lat: formData.pickupLocation.lat, lng: formData.pickupLocation.lng }
                                 : undefined
                             }
@@ -570,7 +600,7 @@ const Book = () => {
                           </p>
                         </div>
                       </div>
-                      
+
                       {/* Visit Reason */}
                       <div className="space-y-2 pt-2">
                         <Label htmlFor="visitReason" className="flex items-center gap-2 text-sm font-medium text-gray-700">
@@ -644,14 +674,14 @@ const Book = () => {
                 {step === 2 && bookingMode === 'schedule' && (
                   <div className="space-y-6 py-6">
                     <SchedulePicker value={scheduleData} onChange={setScheduleData} />
-                    
+
                     <div className="flex gap-4 pt-6 max-w-sm mx-auto">
                       <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(1)}>
                         ← Back
                       </Button>
-                      <Button 
-                        type="button" 
-                        className="flex-1" 
+                      <Button
+                        type="button"
+                        className="flex-1"
                         disabled={!scheduleData.pickupDate || !scheduleData.pickupTime || !scheduleData.dropoffDate || !scheduleData.dropoffTime}
                         onClick={continueFromSchedule}
                       >

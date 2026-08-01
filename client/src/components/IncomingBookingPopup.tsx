@@ -157,10 +157,13 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
         {/* Body */}
         <div className="px-6 py-4 space-y-3">
           {/* Customer */}
-          {booking.customer?.name && (
+          {(booking.name || booking.customer?.name) && (
             <div className="flex items-center gap-2 text-sm text-foreground/80">
               <User className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="font-medium">{booking.customer.name}</span>
+              <span className="font-medium">{booking.name || booking.customer?.name}</span>
+              {booking.bookingFor === "other" && (
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">Booked by family</span>
+              )}
             </div>
           )}
 

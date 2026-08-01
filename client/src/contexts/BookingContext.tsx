@@ -25,6 +25,9 @@ export type Customer = {
 
 export type Booking = {
   _id: string;
+  bookingFor?: "self" | "other";
+  name?: string;
+  contactPhone?: string;
   bookingMode?: "now" | "schedule";
   dispatchStartedAt?: string | null;
   scheduledAt?: string | null;

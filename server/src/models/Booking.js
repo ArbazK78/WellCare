@@ -134,7 +134,11 @@ const BookingSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
   },
+  // The authenticated customer owns the booking; these fields identify the
+  // actual person receiving assistance and the number the guide should call.
+  bookingFor: { type: String, enum: ['self', 'other'], default: 'self' },
   name:         { type: String, required: true },
+  contactPhone: { type: String },
   date:         { type: Date,   required: true },
   time:         { type: String, required: true },
   waitingHours: { type: Number, default: 0 },

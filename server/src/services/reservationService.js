@@ -100,6 +100,7 @@ const listOpportunitiesForGuide = async (guideId, now = new Date()) => {
     scheduledAt: { $gt: now },
     readinessDeadline: { $gt: now },
   })
+    .select('-contactPhone')
     .populate('customer', 'name')
     .sort({ scheduledAt: 1 })
     .limit(100);

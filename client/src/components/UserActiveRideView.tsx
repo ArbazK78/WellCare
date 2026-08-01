@@ -61,6 +61,8 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [routeMode, setRouteMode] = useState<'pickup' | 'dropoff' | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
+  const [isMapReady, setIsMapReady] = useState(false);
+  const lastFittedRouteRef = useRef<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const pickupData = parseLocation(booking.pickupLocation || booking.location || '');
@@ -131,7 +133,22 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
     // FM-3 fix: Removed `booking` and `directions` from dependency array to prevent infinite re-fetches on poll
   }, [isLoaded, isInProgress, guideLocationFromDb?.lat, guideLocationFromDb?.lng, pickupData.lat, pickupData.lng, pickupData.address, pickupData.name, destinationData.lat, destinationData.lng, destinationData.address, destinationData.name]);
 
-  const defaultCenter = pickupData.lat && pickupData.lng ? { lat: pickupData.lat, lng: pickupData.lng } : { lat: 23.0225, lng: 72.5714 };
+  const initialMapCenter = pickupData.lat && pickupData.lng
+    ? { lat: pickupData.lat, lng: pickupData.lng }
+    : { lat: 23.0225, lng: 72.5714 };
+
+  useEffect(() => {
+    if (!isMapReady || !directions || !routeMode || !mapRef.current) return;
+
+    const routeKey = `${booking._id}:${routeMode}`;
+    if (lastFittedRouteRef.current === routeKey) return;
+
+    const routeBounds = directions.routes[0]?.bounds;
+    if (routeBounds) {
+      mapRef.current.fitBounds(routeBounds, 48);
+      lastFittedRouteRef.current = routeKey;
+    }
+  }, [booking._id, directions, isMapReady, routeMode]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] w-full max-w-lg mx-auto overflow-hidden bg-background rounded-2xl shadow-xl relative mt-4 border border-border">
@@ -145,10 +162,17 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
         ) : (
           <GoogleMap
             mapContainerStyle={containerStyle}
-            center={defaultCenter}
-            zoom={14}
             options={mapOptions}
-            onLoad={(map) => { mapRef.current = map; }}
+            onLoad={(map) => {
+              mapRef.current = map;
+              map.setCenter(initialMapCenter);
+              map.setZoom(14);
+              setIsMapReady(true);
+            }}
+            onUnmount={() => {
+              mapRef.current = null;
+              setIsMapReady(false);
+            }}
           >
             {directions && (
               <>
@@ -156,6 +180,7 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
                   directions={directions} 
                   options={{
                     suppressMarkers: true,
+                    preserveViewport: true,
                     polylineOptions: {
                       strokeColor: '#3b82f6',
                       strokeWeight: 5,

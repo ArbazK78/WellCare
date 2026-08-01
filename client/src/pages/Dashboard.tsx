@@ -366,6 +366,15 @@ const Dashboard = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="p-6 space-y-6">
+                  {selectedScheduledBooking.bookingFor === "other" && (
+                    <div className="flex flex-col gap-2 rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-primary">Assistance booked for</p>
+                        <p className="mt-1 font-semibold text-foreground">{selectedScheduledBooking.name}</p>
+                      </div>
+                      <p className="text-sm font-medium text-muted-foreground">{selectedScheduledBooking.contactPhone}</p>
+                    </div>
+                  )}
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                       {selectedScheduledBooking.vehicleType === "scooter" ? "🛵" : "🚖"}

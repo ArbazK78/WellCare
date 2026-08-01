@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  ArrowRight, BadgeCheck, CalendarClock, CheckCircle2, Clock3, HeartHandshake,
+  ArrowRight, ArrowUp, BadgeCheck, CalendarClock, CheckCircle2, Clock3, HeartHandshake,
   MapPinned, Navigation, Play, Quote, Route, ShieldCheck, Sparkles, Star, Users,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -46,6 +46,7 @@ const reassurancePhrases = [
 
 const IndexV2 = () => {
   const [reassuranceIndex, setReassuranceIndex] = useState(0);
+  const [showBackToTop, setShowBackToTop] = useState(false);
 
   useEffect(() => {
     const interval = window.setInterval(
@@ -53,6 +54,14 @@ const IndexV2 = () => {
       3600,
     );
     return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const updateBackToTopVisibility = () => setShowBackToTop(window.scrollY > 560);
+
+    updateBackToTopVisibility();
+    window.addEventListener("scroll", updateBackToTopVisibility, { passive: true });
+    return () => window.removeEventListener("scroll", updateBackToTopVisibility);
   }, []);
   const { t } = useTranslation(["landing", "common"]);
 
@@ -162,6 +171,20 @@ const IndexV2 = () => {
         <SectionReveal className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="eyebrow">{t("landing:blogEyebrow")}</p><h2 className="section-title mt-4 max-w-3xl">{t("landing:blogTitle")}</h2></div><Button variant="outline" asChild><Link to="/blogs">View all articles<ArrowRight /></Link></Button></SectionReveal>
         <div className="mt-12 grid gap-5 lg:grid-cols-3">{posts.map(([category, title, copy], index) => <SectionReveal delay={index * 80} key={title} className="group overflow-hidden rounded-[1.6rem] border bg-card"><div className={`h-44 ${index === 0 ? "bg-[linear-gradient(135deg,#cddfce,#f5c9ab)]" : index === 1 ? "bg-[linear-gradient(135deg,#1f5c4a,#91b39c)]" : "bg-[linear-gradient(135deg,#f0d8c5,#e3b06f)]"} p-6`}><span className="grid h-full place-items-center rounded-2xl border border-white/30 bg-white/15"><Users className="h-10 w-10 text-white/75" /></span></div><div className="p-6"><p className="text-xs font-bold uppercase tracking-[.15em] text-primary">{category}</p><h3 className="mt-3 font-display text-2xl leading-8">{title}</h3><p className="mt-3 text-sm leading-7 text-muted-foreground">{copy}</p><span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary">Read article<ArrowRight className="transition group-hover:translate-x-1" /></span></div></SectionReveal>)}</div>
       </section>
+
+      <button
+        type="button"
+        aria-label="Back to top"
+        title="Back to top"
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        className={`fixed bottom-5 right-5 z-40 grid h-12 w-12 place-items-center rounded-full border border-primary-foreground/15 bg-primary text-primary-foreground shadow-[0_14px_35px_-12px_hsl(var(--primary)/.75)] transition-all duration-300 hover:-translate-y-1 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:bottom-8 md:right-8 ${
+          showBackToTop
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none translate-y-4 opacity-0"
+        }`}
+      >
+        <ArrowUp className="h-5 w-5" aria-hidden="true" />
+      </button>
     </PublicPageShell>
   );
 };

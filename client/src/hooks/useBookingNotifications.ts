@@ -5,6 +5,9 @@ import { bookingAudio } from '@/services/BookingAudioService';
 export type IncomingBooking = {
   _id: string;
   bookingRefId: string;
+  bookingFor?: 'self' | 'other';
+  name?: string;
+  contactPhone?: string;
   bookingMode?: 'now' | 'schedule';
   scheduledAt?: string;
   pickupLocation?: string;

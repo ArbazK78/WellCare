@@ -357,9 +357,10 @@ const GuideDashboard = () => {
         <div className="space-y-4">
           <div className="flex items-center">
             <User className="h-4 w-4 mr-2 text-muted-foreground" />
-            <span className="font-medium">Customer Details:</span> 
-            <span className="ml-2">{booking.customer?.name || "Not provided"}</span>
-            <span className="ml-2">{booking.customer?.phone || "No phone"}</span>
+            <span className="font-medium">Passenger:</span>
+            <span className="ml-2">{booking.name || booking.customer?.name || "Not provided"}</span>
+            <span className="ml-2">{booking.contactPhone || booking.customer?.phone || "No phone"}</span>
+            {booking.bookingFor === "other" && <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">Booked by family</span>}
           </div>
           
           <div className="flex flex-col flex-1 mt-1 border-l-2 border-border pl-4 ml-2 mb-4">
@@ -614,7 +615,7 @@ const GuideDashboard = () => {
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2 text-sm">
-                        <p><User className="mr-2 inline h-4 w-4 text-primary" />{(booking.customer as any)?.name || "WellCare customer"}</p>
+                        <p><User className="mr-2 inline h-4 w-4 text-primary" />{booking.name || (booking.customer as any)?.name || "WellCare customer"}</p>
                         <p className="text-xs text-muted-foreground">Contact details unlock after you accept the commitment.</p>
                         <p><MapPin className="mr-2 inline h-4 w-4 text-primary" />{parseLocation(booking.pickupLocation).name}</p>
                         <p><Clock className="mr-2 inline h-4 w-4 text-primary" />~{booking.durationMin || 0} min journey · {booking.waitingHours || 0}h waiting</p>
@@ -638,9 +639,11 @@ const GuideDashboard = () => {
                         <p className="font-semibold">{formatBookingDate(booking.scheduledAt || booking.date)} · {formatBookingTime(booking.scheduledAt || booking.time)}</p>
                         <p className="mt-1 text-sm text-muted-foreground">{parseLocation(booking.pickupLocation).name} → {parseLocation(booking.destinationAddress).name}</p>
                         <div className="mt-3 rounded-xl border border-border/70 bg-secondary/35 p-3 text-sm">
-                          <p className="font-semibold">{(booking.customer as any)?.name || "WellCare customer"}</p>
-                          <p className="mt-1 text-muted-foreground">{(booking.customer as any)?.phone || "Contact available closer to pickup"}</p>
-                          {(booking.customer as any)?.email && <p className="text-muted-foreground">{(booking.customer as any).email}</p>}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold">{booking.name || (booking.customer as any)?.name || "WellCare customer"}</p>
+                            {booking.bookingFor === "other" && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">Booked by family</span>}
+                          </div>
+                          <p className="mt-1 text-muted-foreground">{booking.contactPhone || (booking.customer as any)?.phone || "Contact available closer to pickup"}</p>
                         </div>
                         <span className="mt-3 inline-flex rounded-full bg-secondary px-3 py-1 text-xs font-semibold capitalize">{(booking.reservationStatus || "claimed").replaceAll("_", " ")}</span>
                         {booking.reservationStatus === "readiness_pending" && (
