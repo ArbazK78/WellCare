@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Check, X, MapPin, Navigation, Clock, User } from 'lucide-react';
 import { cn, parseLocation } from '@/lib/utils';
-import { useGeolocation } from '@/hooks/useGeolocation';
+import { useGuideLocation } from '@/contexts/GuideLocationContext';
 import { IncomingBooking } from '@/hooks/useBookingNotifications';
 import { useJsApiLoader } from '@react-google-maps/api';
 import { GOOGLE_MAPS_LIBRARIES, GOOGLE_MAPS_LOADER_ID } from '@/lib/googleMapsLoader';
@@ -41,7 +41,7 @@ const IncomingBookingPopup = ({ booking, onAccept, onDecline, onTimeout }: Props
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
-  const { location: guideLocation } = useGeolocation();
+  const { location: guideLocation } = useGuideLocation();
   const [awayText, setAwayText] = useState<string | null>(null);
   const tripText = booking.distanceKm && booking.durationMin
     ? `${booking.durationMin} min (${booking.distanceKm.toFixed(1)} km) trip`

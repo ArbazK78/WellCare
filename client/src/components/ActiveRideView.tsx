@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleMap, useJsApiLoader, DirectionsRenderer, Marker } from '@react-google-maps/api';
-import { MapPin, Navigation, PhoneCall, User, MessageSquare, ChevronUp, ChevronDown, X, AlertTriangle } from 'lucide-react';
+import { MapPin, Navigation, PhoneCall, User, MessageSquare, ChevronUp, ChevronDown, X, AlertTriangle, LocateFixed } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useGeolocation } from '@/hooks/useGeolocation';
+import { useGuideLocation } from '@/contexts/GuideLocationContext';
 import { Booking } from '@/contexts/BookingContext';
 import { parseLocation, cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { GOOGLE_MAPS_LIBRARIES, GOOGLE_MAPS_LOADER_ID } from '@/lib/googleMapsLoader';
+import { useAnimatedCoordinate } from '@/hooks/useAnimatedCoordinate';
+import { distanceBetweenCoordinatesMeters } from '@/lib/geo';
 
 // Map options for a locked, clean navigation view
 const mapOptions = {
@@ -42,6 +44,9 @@ const getPinIcon = (color: string) => {
 };
 
 // Map container styling with rounded corners
+const ROUTE_REFRESH_MS = 45_000;
+const ROUTE_REFRESH_DISTANCE_METERS = 150;
+
 const containerStyle = {
   width: '100%',
   height: '100%',
@@ -64,13 +69,15 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
   });
 
   const { toast } = useToast();
-  const { location: guideLocation } = useGeolocation();
+  const { publishedLocation, publishError, trackingState, pageVisible, setActiveBookingId } = useGuideLocation();
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [routeMode, setRouteMode] = useState<'pickup' | 'dropoff' | null>(null);
   const [isArriving, setIsArriving] = useState(false);
   const mapRef = useRef<google.maps.Map | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
   const lastFittedRouteRef = useRef<string | null>(null);
+  const lastRouteRequestedAtRef = useRef(0);
+  const lastRouteOriginRef = useRef<{ lat: number; lng: number } | null>(null);
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
@@ -90,13 +97,27 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
   ];
 
   const pickupData = parseLocation(booking.pickupLocation || booking.location || '');
+  const destinationData = parseLocation(booking.destinationAddress || '');
+  const publishedLat = publishedLocation?.lat;
+  const publishedLng = publishedLocation?.lng;
   const isArrived = booking.status === 'arrived';
   const isInProgress = booking.status === 'in_progress';
+  const animatedGuideLocation = useAnimatedCoordinate(publishedLocation, 2400);
 
   useEffect(() => {
-    if (!isLoaded || !guideLocation) return;
-    // Determine what route we should be showing right now
+    setActiveBookingId(booking._id);
+    return () => setActiveBookingId(null);
+  }, [booking._id, setActiveBookingId]);
+
+  useEffect(() => {
+    if (!isLoaded || publishedLat == null || publishedLng == null) return;
+    const currentOrigin = { lat: publishedLat, lng: publishedLng };
+    // Marker updates are continuous; billable route refreshes are phase-based and throttled.
     const targetMode = isInProgress ? 'dropoff' : 'pickup';
+    const now = Date.now();
+    const movedMeters = distanceBetweenCoordinatesMeters(lastRouteOriginRef.current, currentOrigin);
+    const routeIsFresh = now - lastRouteRequestedAtRef.current < ROUTE_REFRESH_MS;
+    if (routeMode === targetMode && routeIsFresh && movedMeters < ROUTE_REFRESH_DISTANCE_METERS) return;
 
     const pickupPoint = pickupData.lat && pickupData.lng 
       ? { lat: pickupData.lat, lng: pickupData.lng } 
@@ -106,16 +127,13 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
     let destination: google.maps.LatLngLiteral | string;
 
     if (targetMode === 'pickup') {
-      origin = { lat: guideLocation.lat, lng: guideLocation.lng };
+      origin = currentOrigin;
       destination = pickupPoint;
     } else {
-      // In progress -> pickup to dropoff
-      const destData = parseLocation((booking as any).destinationAddress || '');
-      const dropoffPoint = destData.lat && destData.lng
-        ? { lat: destData.lat, lng: destData.lng }
-        : (destData.address || destData.name);
-      
-      origin = pickupPoint;
+      const dropoffPoint = destinationData.lat && destinationData.lng
+        ? { lat: destinationData.lat, lng: destinationData.lng }
+        : (destinationData.address || destinationData.name);
+      origin = currentOrigin;
       destination = dropoffPoint;
     }
 
@@ -131,6 +149,8 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
       },
       (result, status) => {
         if (status === window.google.maps.DirectionsStatus.OK && result) {
+          lastRouteRequestedAtRef.current = Date.now();
+          lastRouteOriginRef.current = currentOrigin;
           setDirections(result);
           setRouteMode(targetMode);
         } else {
@@ -138,7 +158,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
         }
       }
     );
-  }, [isLoaded, guideLocation?.lat, guideLocation?.lng, guideLocation?.accuracy, isInProgress, booking._id, booking.destinationAddress, pickupData.lat, pickupData.lng, pickupData.address, pickupData.name]);
+  }, [isLoaded, publishedLat, publishedLng, isInProgress, routeMode, pickupData.lat, pickupData.lng, pickupData.address, pickupData.name, destinationData.lat, destinationData.lng, destinationData.address, destinationData.name]);
 
   const handleArriveClick = async () => {
     setIsArriving(true);
@@ -170,7 +190,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
     setIsCompleting(false);
   };
 
-  const initialMapCenter = guideLocation
+  const initialMapCenter = publishedLocation
     || (pickupData.lat && pickupData.lng ? { lat: pickupData.lat, lng: pickupData.lng } : null)
     || { lat: 20.5937, lng: 78.9629 };
 
@@ -225,13 +245,7 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
                     }
                   }}
                 />
-                {directions.routes[0]?.legs[0]?.start_location && (
-                  <Marker 
-                    position={directions.routes[0].legs[0].start_location}
-                    icon={(!isInProgress) ? getVehicleIcon(booking.vehicleType || 'cab') : getPinIcon('#3b82f6')}
-                    zIndex={100}
-                  />
-                )}
+
                 {directions.routes[0]?.legs[0]?.end_location && (
                   <Marker 
                     position={directions.routes[0].legs[0].end_location}
@@ -240,7 +254,48 @@ export default function ActiveRideView({ booking, onArrive, onCancel, onStartTri
                 )}
               </>
             )}
+            {animatedGuideLocation && (
+              <Marker
+                position={{ lat: animatedGuideLocation.lat, lng: animatedGuideLocation.lng }}
+                icon={getVehicleIcon(booking.vehicleType || 'cab')}
+                zIndex={100}
+              />
+            )}
           </GoogleMap>
+        )}
+        <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-full border border-border/80 bg-background/90 px-3 py-1.5 text-xs font-semibold text-foreground shadow-md backdrop-blur">
+          <span className={`mr-2 inline-block h-2 w-2 rounded-full ${trackingState === "live" ? "bg-emerald-500 animate-pulse" : trackingState === "error" ? "bg-red-500" : "bg-amber-400"}`} />
+          {!pageVisible
+            ? "Keep this page open for live GPS"
+            : publishError?.code === "IMPLAUSIBLE_MOVEMENT"
+              ? "GPS jump rejected"
+              : publishError?.code === "RATE_LIMITED"
+                ? "Location updates settling"
+                : publishError?.code === "OUT_OF_ORDER"
+                  ? "Waiting for newer GPS"
+                  : trackingState === "live"
+                    ? "Live location sharing"
+                    : trackingState === "reconnecting"
+                      ? "Reconnecting tracking"
+                      : trackingState === "delayed"
+                        ? "Waiting for fresh GPS"
+                        : trackingState === "error"
+                          ? "Location sharing interrupted"
+                          : "Location checkpointing"}
+        </div>
+        {publishedLocation && (
+          <button
+            type="button"
+            aria-label="Recenter map on my location"
+            title="Recenter on my location"
+            onClick={() => {
+              mapRef.current?.panTo({ lat: publishedLocation.lat, lng: publishedLocation.lng });
+              mapRef.current?.setZoom(16);
+            }}
+            className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full border border-border/80 bg-background/90 text-foreground shadow-md backdrop-blur transition hover:bg-accent"
+          >
+            <LocateFixed className="h-4 w-4" />
+          </button>
         )}
       </div>
 

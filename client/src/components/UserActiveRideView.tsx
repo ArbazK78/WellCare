@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleMap, useJsApiLoader, DirectionsRenderer, Marker } from '@react-google-maps/api';
-import { PhoneCall, ChevronUp, ChevronDown, User, AlertTriangle } from 'lucide-react';
+import { PhoneCall, ChevronUp, ChevronDown, User, AlertTriangle, LocateFixed } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Booking } from '@/contexts/BookingContext';
 import { parseLocation } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { GOOGLE_MAPS_LIBRARIES, GOOGLE_MAPS_LOADER_ID } from '@/lib/googleMapsLoader';
+import { useLiveBookingTracking, LiveTrackingLocation } from '@/hooks/useLiveBookingTracking';
+import { useAnimatedCoordinate } from '@/hooks/useAnimatedCoordinate';
+import { distanceBetweenCoordinatesMeters } from '@/lib/geo';
 
 const mapOptions = {
   disableDefaultUI: true,
@@ -38,6 +41,9 @@ const getPinIcon = (color: string) => {
   };
 };
 
+const ROUTE_REFRESH_MS = 45_000;
+const ROUTE_REFRESH_DISTANCE_METERS = 150;
+
 const containerStyle = {
   width: '100%',
   height: '100%',
@@ -63,6 +69,8 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
   const mapRef = useRef<google.maps.Map | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
   const lastFittedRouteRef = useRef<string | null>(null);
+  const lastRouteRequestedAtRef = useRef(0);
+  const lastRouteOriginRef = useRef<{ lat: number; lng: number } | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const pickupData = parseLocation(booking.pickupLocation || booking.location || '');
@@ -71,21 +79,47 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
   const isAccepted = booking.status === 'accepted';
   const isArrived = booking.status === 'arrived';
   const isInProgress = booking.status === 'in_progress';
+  const trackingEnabled = isAccepted || isArrived || isInProgress;
+  const liveTracking = useLiveBookingTracking(booking._id, trackingEnabled);
 
   const storedGuideLocation = booking.guide?.currentLocation;
+  const storedGuideLocationAt = storedGuideLocation?.updatedAt
+    ? new Date(storedGuideLocation.updatedAt).getTime()
+    : 0;
   const hasGuideLocation = Boolean(
     storedGuideLocation
     && Number.isFinite(storedGuideLocation.lat)
     && Number.isFinite(storedGuideLocation.lng)
+    && Number.isFinite(storedGuideLocationAt)
+    && Date.now() - storedGuideLocationAt <= 45_000
   );
-  const guideLocationFromDb = hasGuideLocation
-    ? { lat: storedGuideLocation!.lat, lng: storedGuideLocation!.lng }
+  const guideLocationFromDb: LiveTrackingLocation | null = hasGuideLocation
+    ? {
+        lat: storedGuideLocation!.lat,
+        lng: storedGuideLocation!.lng,
+        accuracy: storedGuideLocation!.accuracy,
+        capturedAt: storedGuideLocationAt,
+        serverReceivedAt: storedGuideLocationAt,
+        sequence: 0,
+        quality: storedGuideLocation!.accuracy <= 500 ? 'good' : 'degraded',
+      }
     : null;
+  const latestGuideLocation = liveTracking.location || guideLocationFromDb;
+  const latestGuideLat = latestGuideLocation?.lat;
+  const latestGuideLng = latestGuideLocation?.lng;
+  const animatedGuideLocation = useAnimatedCoordinate(latestGuideLocation, 2400);
 
   useEffect(() => {
     if (!isLoaded) return;
 
     const targetMode = isInProgress ? 'dropoff' : 'pickup';
+    const currentOrigin = latestGuideLat == null || latestGuideLng == null
+      ? null
+      : { lat: latestGuideLat, lng: latestGuideLng };
+    const now = Date.now();
+    const movedMeters = distanceBetweenCoordinatesMeters(lastRouteOriginRef.current, currentOrigin);
+    const routeIsFresh = now - lastRouteRequestedAtRef.current < ROUTE_REFRESH_MS;
+    if (routeMode === targetMode && routeIsFresh && movedMeters < ROUTE_REFRESH_DISTANCE_METERS) return;
 
     const pickupPoint = pickupData.lat && pickupData.lng 
       ? { lat: pickupData.lat, lng: pickupData.lng } 
@@ -95,19 +129,20 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
     let destination: google.maps.LatLngLiteral | string;
 
     if (targetMode === 'pickup') {
-      if (!guideLocationFromDb) {
+      if (!currentOrigin) {
         setDirections(null);
         setRouteMode(null);
         return;
       }
-      origin = guideLocationFromDb;
+      origin = currentOrigin;
       destination = pickupPoint;
     } else {
       const dropoffPoint = destinationData.lat && destinationData.lng
         ? { lat: destinationData.lat, lng: destinationData.lng }
         : (destinationData.address || destinationData.name);
       
-      origin = pickupPoint;
+      if (!currentOrigin) return;
+      origin = currentOrigin;
       destination = dropoffPoint;
     }
 
@@ -123,6 +158,9 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
       },
       (result, status) => {
         if (status === window.google.maps.DirectionsStatus.OK && result) {
+          lastRouteRequestedAtRef.current = Date.now();
+          lastRouteOriginRef.current = currentOrigin;
+
           setDirections(result);
           setRouteMode(targetMode);
         } else {
@@ -131,11 +169,13 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
       }
     );
     // FM-3 fix: Removed `booking` and `directions` from dependency array to prevent infinite re-fetches on poll
-  }, [isLoaded, isInProgress, guideLocationFromDb?.lat, guideLocationFromDb?.lng, pickupData.lat, pickupData.lng, pickupData.address, pickupData.name, destinationData.lat, destinationData.lng, destinationData.address, destinationData.name]);
+  }, [isLoaded, isInProgress, routeMode, latestGuideLat, latestGuideLng, pickupData.lat, pickupData.lng, pickupData.address, pickupData.name, destinationData.lat, destinationData.lng, destinationData.address, destinationData.name]);
 
-  const initialMapCenter = pickupData.lat && pickupData.lng
-    ? { lat: pickupData.lat, lng: pickupData.lng }
-    : { lat: 23.0225, lng: 72.5714 };
+  const initialMapCenter = latestGuideLocation
+    ? { lat: latestGuideLocation.lat, lng: latestGuideLocation.lng }
+    : pickupData.lat && pickupData.lng
+      ? { lat: pickupData.lat, lng: pickupData.lng }
+      : { lat: 23.0225, lng: 72.5714 };
 
   useEffect(() => {
     if (!isMapReady || !directions || !routeMode || !mapRef.current) return;
@@ -188,12 +228,7 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
                     }
                   }}
                 />
-                {directions.routes[0]?.legs[0]?.start_location && (
-                  <Marker 
-                    position={directions.routes[0].legs[0].start_location}
-                    icon={(!isInProgress) ? getVehicleIcon(booking.vehicleType || 'cab') : getPinIcon('#3b82f6')}
-                  />
-                )}
+
                 {directions.routes[0]?.legs[0]?.end_location && (
                   <Marker 
                     position={directions.routes[0].legs[0].end_location}
@@ -202,7 +237,32 @@ export default function UserActiveRideView({ booking, onCancelClick, onContactGu
                 )}
               </>
             )}
+            {animatedGuideLocation && (
+              <Marker
+                position={{ lat: animatedGuideLocation.lat, lng: animatedGuideLocation.lng }}
+                icon={getVehicleIcon(booking.vehicleType || 'cab')}
+                zIndex={100}
+              />
+            )}
           </GoogleMap>
+        )}
+        <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-full border border-border/80 bg-background/90 px-3 py-1.5 text-xs font-semibold text-foreground shadow-md backdrop-blur">
+          <span className={`mr-2 inline-block h-2 w-2 rounded-full ${!liveTracking.stale && liveTracking.connectionState === "connected" ? "bg-emerald-500 animate-pulse" : liveTracking.connectionState === "error" ? "bg-red-500" : "bg-amber-400"}`} />
+          {!latestGuideLocation ? "Waiting for guide location" : liveTracking.stale ? "Location temporarily delayed" : liveTracking.location?.quality === "degraded" ? "Live · weak GPS accuracy" : "Live guide location"}
+        </div>
+        {latestGuideLocation && (
+          <button
+            type="button"
+            aria-label="Recenter map on guide"
+            title="Recenter on guide"
+            onClick={() => {
+              mapRef.current?.panTo({ lat: latestGuideLocation.lat, lng: latestGuideLocation.lng });
+              mapRef.current?.setZoom(16);
+            }}
+            className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full border border-border/80 bg-background/90 text-foreground shadow-md backdrop-blur transition hover:bg-accent"
+          >
+            <LocateFixed className="h-4 w-4" />
+          </button>
         )}
       </div>
 

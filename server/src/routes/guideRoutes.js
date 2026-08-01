@@ -4,6 +4,22 @@ const router = express.Router();
 const Guide = require('../models/Guide');
 const verifyGuideToken = require('../middlewares/verifyGuideToken');
 const { handleGuideDocumentUpload } = require('../middlewares/guideDocumentUpload');
+const {
+  deleteGuideLocation,
+  getGuideLocation,
+  setBookingLocation,
+  setGuideLocation,
+} = require('../services/liveLocationStore');
+const {
+  LocationValidationError,
+  normalizeLocationPayload,
+  validateMovement,
+} = require('../services/locationValidationService');
+const {
+  TrackingAuthorizationError,
+  authorizeGuideLocation,
+} = require('../realtime/trackingAuthorization');
+const { emitGuideLocation } = require('../realtime/realtimeHub');
 
 
 // GET all approved guides — BC-12 fix: strip password hash
@@ -102,6 +118,10 @@ router.put('/online-status', verifyGuideToken, async (req, res) => {
 
     if (!guide) return res.status(404).json({ message: 'Guide not found' });
 
+    // A deliberate online transition starts a fresh GPS session baseline.
+    await deleteGuideLocation(guide._id);
+    await Guide.updateOne({ _id: guide._id }, { $unset: { currentLocation: 1 } });
+
     console.log(`📡 Guide ${guide.name} is now ${isOnline ? 'ONLINE 🟢' : 'OFFLINE 🔴'}`);
     res.json({ isOnline: guide.isOnline, lastOnlineAt: guide.lastOnlineAt });
   } catch (err) {
@@ -110,27 +130,67 @@ router.put('/online-status', verifyGuideToken, async (req, res) => {
   }
 });
 
-// Persist a guide's latest online coordinates for scheduled readiness ETA checks.
+// Validated REST fallback used only while Socket.IO is disconnected.
 router.put('/location', verifyGuideToken, async (req, res) => {
   try {
-    const lat = Number(req.body.lat);
-    const lng = Number(req.body.lng);
-    const accuracy = Number(req.body.accuracy);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      return res.status(400).json({ message: 'Valid latitude and longitude are required' });
+    const now = Date.now();
+    const guideId = String(req.guide.id);
+    const guide = await Guide.findOne({ _id: guideId, status: 'approved', isOnline: true }).select('_id currentLocation').lean();
+    if (!guide) {
+      return res.status(409).json({ code: 'GUIDE_NOT_ONLINE', message: 'Go online before sharing live location' });
     }
-    if (!Number.isFinite(accuracy) || accuracy < 0) {
-      return res.status(400).json({ message: 'Location accuracy is required' });
+
+    const normalized = normalizeLocationPayload(req.body, now);
+    let previous = await getGuideLocation(guideId);
+    const persisted = guide.currentLocation;
+    if (!previous && persisted?.updatedAt && Number.isFinite(persisted.lat) && Number.isFinite(persisted.lng)) {
+      previous = {
+        lat: persisted.lat,
+        lng: persisted.lng,
+        accuracy: persisted.accuracy,
+        capturedAt: new Date(persisted.updatedAt).getTime(),
+        sequence: -1,
+      };
     }
-    const guide = await Guide.findOneAndUpdate(
-      { _id: req.guide.id, isOnline: true },
-      { $set: { currentLocation: { lat, lng, accuracy, updatedAt: new Date() } } },
-      { new: true, select: '_id currentLocation' }
+    validateMovement(previous, normalized);
+
+    if (req.body.bookingId) {
+      await authorizeGuideLocation(req.body.bookingId, guideId);
+    }
+
+    const location = {
+      ...normalized,
+      guideId,
+      serverReceivedAt: now,
+      quality: normalized.accuracy <= 500 ? 'good' : 'degraded',
+    };
+    await setGuideLocation(guideId, location);
+
+    let trackingActive = false;
+    if (req.body.bookingId) {
+      const bookingLocation = { ...location, bookingId: String(req.body.bookingId) };
+      await setBookingLocation(req.body.bookingId, bookingLocation);
+      emitGuideLocation(req.body.bookingId, bookingLocation);
+      trackingActive = true;
+    }
+
+    await Guide.updateOne(
+      { _id: guideId, status: 'approved', isOnline: true },
+      { $set: { currentLocation: {
+        lat: location.lat,
+        lng: location.lng,
+        accuracy: location.accuracy,
+        updatedAt: new Date(location.serverReceivedAt),
+      } } },
     );
-    if (!guide) return res.status(409).json({ message: 'Go online before sharing live location' });
-    return res.json({ updatedAt: guide.currentLocation.updatedAt, accuracy: guide.currentLocation.accuracy, precise: guide.currentLocation.accuracy <= 500 });
+
+    return res.json({ ok: true, trackingActive, location });
   } catch (error) {
-    return res.status(500).json({ message: 'Unable to update guide location' });
+    if (error instanceof LocationValidationError || error instanceof TrackingAuthorizationError) {
+      return res.status(409).json({ code: error.code, message: error.message });
+    }
+    console.error('REST guide location fallback failed:', error);
+    return res.status(500).json({ code: 'LOCATION_UPDATE_FAILED', message: 'Unable to update guide location' });
   }
 });
 module.exports = router;

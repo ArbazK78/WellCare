@@ -11,6 +11,21 @@ const resources = {
       learnMore: "Learn more",
       sampleStory: "Illustrative story",
     },
+    errors: {
+      code: "Error {{code}}",
+      "not-found": {
+        title: "This page wandered off the route.",
+        description: "The link may be outdated or the page may have moved. Your WellCare account and bookings are safe.",
+      },
+      unexpected: {
+        title: "We hit an unexpected pause.",
+        description: "Something interrupted this screen, but your saved information remains secure. Try reloading or return home.",
+      },
+      tryAgain: "Try again",
+      home: "Return home",
+      goBack: "Go back",
+      reassurance: "Care continues, even when a page needs a moment.",
+    },
     navigation: {
       home: "Home",
       howItWorks: "How It Works",

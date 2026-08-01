@@ -5,6 +5,9 @@ export interface Coordinates {
   lat: number;
   lng: number;
   accuracy: number;
+  speed: number | null;
+  heading: number | null;
+  capturedAt: number;
 }
 
 export function useGeolocation(enabled = true) {
@@ -32,7 +35,11 @@ export function useGeolocation(enabled = true) {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
           accuracy: position.coords.accuracy,
+          speed: position.coords.speed,
+          heading: position.coords.heading,
+          capturedAt: position.timestamp || Date.now(),
         });
+        setError(null);
         setLoading(false);
       },
       (err) => {

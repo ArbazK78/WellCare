@@ -5,10 +5,12 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BookingProvider } from "@/contexts/BookingContext";
 import { GuideAuthProvider } from "@/contexts/GuideAuthContext";
+import { CustomerRealtimeProvider } from "@/contexts/CustomerRealtimeContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import GuideProtectedRoute from "@/components/GuideProtectedRoute";
 import AdminProtectedRoute from "@/components/AdminProtectedRoute";
 import GuideLayout from "@/components/GuideLayout";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 
 import Index from "./pages/IndexV2";
 import Blogs from "./pages/Blogs";
@@ -121,10 +123,14 @@ const App = () => (
       <AuthProvider>
         <GuideAuthProvider>
           <BookingProvider>
+            <CustomerRealtimeProvider>
             <Toaster />
             <BrowserRouter>
-              <AppRoutes />
+              <AppErrorBoundary>
+                <AppRoutes />
+              </AppErrorBoundary>
             </BrowserRouter>
+            </CustomerRealtimeProvider>
           </BookingProvider>
         </GuideAuthProvider>
       </AuthProvider>

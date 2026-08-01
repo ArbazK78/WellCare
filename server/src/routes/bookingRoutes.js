@@ -58,6 +58,9 @@ router.put('/guide/reservations/:bookingId/claim', verifyGuideToken, bookingCont
 router.put('/guide/reservations/:bookingId/readiness', verifyGuideToken, bookingController.confirmReservationReadiness);
 router.put('/guide/reservations/:bookingId/release', verifyGuideToken, bookingController.releaseReservation);
 
+// GET /api/bookings/:bookingId/tracking-snapshot - Latest authorized live coordinate.
+router.get('/:bookingId/tracking-snapshot', verifyUserToken, bookingController.getTrackingSnapshot);
+
 // PUT /api/bookings/:bookingId/cancel - Cancel a specific booking
 router.put("/:bookingId/cancel", verifyUserToken, bookingController.cancelBooking); // 👈 Soft delete
 

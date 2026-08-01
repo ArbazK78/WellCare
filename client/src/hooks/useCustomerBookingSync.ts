@@ -98,7 +98,28 @@ export const useCustomerBookingSync = () => {
     };
   }, [refreshBookings]);
 
-  // ── Cleanup on unmount ─────────────────────────────────────────────────────
+  // Socket.IO is the fast path. Polling remains as reconciliation after suspension.
+  useEffect(() => {
+    const handleBookingUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        bookingId?: string;
+        status?: string;
+        event?: string;
+      }>).detail;
+      const previousSnapshot = detail?.bookingId
+        ? prevStatusMap.current.get(detail.bookingId)
+        : undefined;
+      const previousStatus = previousSnapshot?.split(":")[0];
+
+      if (previousStatus === "pending" && detail?.status === "accepted") {
+        bookingAudio.playOnce(assignedSoundUrl);
+      }
+      void refreshBookings();
+    };
+
+    window.addEventListener("wellcare:booking-updated", handleBookingUpdated);
+    return () => window.removeEventListener("wellcare:booking-updated", handleBookingUpdated);
+  }, [refreshBookings]);  // ── Cleanup on unmount ─────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);

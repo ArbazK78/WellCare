@@ -9,6 +9,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const { createRealtimeServer } = require('./src/realtime/socketServer');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -95,7 +96,7 @@ mongoose.connect(process.env.MONGO_URI, {
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
 })
-  .then(() => {
+  .then(async () => {
     console.log('✅ MongoDB connected');
     
     // BH-2 fix: Background task to auto-rotate expired offers every 10 seconds.
@@ -115,7 +116,8 @@ mongoose.connect(process.env.MONGO_URI, {
     processReservations();
     setInterval(processReservations, 30000);
 
-    app.listen(PORT, () => {
+    const { httpServer } = await createRealtimeServer(app);
+    httpServer.listen(PORT, () => {
       console.log(`🚀 Server running at http://localhost:${PORT}`);
     });
   })

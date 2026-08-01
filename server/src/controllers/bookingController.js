@@ -10,6 +10,8 @@ const fareCalculationService = require('../services/fareCalculationService');
 const medicalPlaceService = require('../services/medicalPlaceService');
 const bookingPartyService = require('../services/bookingPartyService');
 const notificationService = require('../services/notificationService');
+const { getBookingLocation } = require('../services/liveLocationStore');
+const { emitBookingUpdated, endBookingTracking } = require('../realtime/realtimeHub');
 const NotificationEvent = require('../models/NotificationEvent');
 const {
   ACTIVE_ASSIGNED_STATUSES,
@@ -289,6 +291,8 @@ exports.cancelBooking = async (req, res) => {
     }
     await booking.save();
 
+    emitBookingUpdated(booking, 'booking_cancelled');
+    await endBookingTracking(booking._id, 'booking_cancelled');
     res.status(200).json({ message: 'Booking cancelled successfully' });
   } catch (error) {
     console.error('❌ Error cancelling booking:', error);
@@ -350,6 +354,7 @@ exports.startTrip = async (req, res) => {
 
     booking.status = 'in_progress';
     await booking.save();
+    emitBookingUpdated(booking, 'trip_started');
 
     // Re-populate to match standard return shape if needed
     await booking.populate('guide', 'name image rating phone currentLocation');
@@ -421,6 +426,7 @@ exports.updateBookingStatus = async (req, res) => {
           notificationService.enqueue({ booking: booking._id, recipientRole: 'customer', recipient: booking.customer._id || booking.customer, type: 'guide_en_route', payload: { scheduledAt: booking.scheduledAt, fallback: true }, dedupeKey: `${booking._id}:guide_en_route` }),
         ]);
       }
+      emitBookingUpdated(booking, 'guide_accepted');
       return res.json({ message: 'Booking accepted successfully', booking });
     }
 
@@ -463,6 +469,8 @@ exports.updateBookingStatus = async (req, res) => {
       booking.offerExpiresAt = null;
       booking.cancelReason = req.body.reason || 'Guide cancelled';
       await booking.save();
+      await endBookingTracking(booking._id, 'guide_released_booking');
+      emitBookingUpdated(booking, 'guide_released_booking');
       await dispatchService.initiateDispatch(bookingId, eligibleGuideIds);
       return res.json({ message: 'Booking returned to the guide queue', booking });
     }
@@ -476,6 +484,8 @@ exports.updateBookingStatus = async (req, res) => {
     booking.status = status;
     if (status === 'completed') booking.completedAt = new Date();
     await booking.save();
+    emitBookingUpdated(booking, status === 'completed' ? 'trip_completed' : `booking_${status}`);
+    if (status === 'completed') await endBookingTracking(booking._id, 'trip_completed');
     await booking.populate('customer', 'name phone email');
     await booking.populate('guide', 'name image rating phone currentLocation');
 
@@ -617,7 +627,10 @@ exports.getGuideSchedule = async (req, res) => {
 exports.claimReservation = async (req, res) => {
   try {
     const result = await reservationService.claimReservation(req.params.bookingId, req.guide.id);
-    if (result.code === 'claimed') return res.json({ message: 'Reservation added to your schedule', booking: result.booking });
+    if (result.code === 'claimed') {
+      emitBookingUpdated(result.booking, 'reservation_claimed');
+      return res.json({ message: 'Reservation added to your schedule', booking: result.booking });
+    }
     if (result.code === 'conflict') return res.status(409).json({ message: 'This reservation overlaps another commitment in your schedule.' });
     if (result.code === 'ineligible') return res.status(403).json({ message: 'Scheduled opportunities are currently available only to approved Cab guides.' });
     return res.status(409).json({ message: 'This reservation is no longer available.' });
@@ -631,6 +644,7 @@ exports.confirmReservationReadiness = async (req, res) => {
   try {
     const booking = await reservationService.confirmReadiness(req.params.bookingId, req.guide.id);
     if (!booking) return res.status(409).json({ message: 'This reservation is not awaiting your readiness confirmation.' });
+    emitBookingUpdated(booking, 'readiness_confirmed');
     return res.json({ message: 'Readiness confirmed', booking });
   } catch (error) {
     console.error('Readiness confirmation failed:', error);
@@ -657,6 +671,8 @@ exports.releaseReservation = async (req, res) => {
     booking.readinessConfirmedAt = null;
     booking.reservationAudit.push({ event: 'reservation_released', at: now, actor: 'guide', guide: req.guide.id });
     await booking.save();
+    await endBookingTracking(booking._id, 'reservation_released');
+    emitBookingUpdated(booking, 'reservation_released');
     return res.json({ message: 'Reservation released for another guide', booking });
   } catch (error) {
     console.error('Reservation release failed:', error);
@@ -689,5 +705,51 @@ exports.acknowledgeGuideReservationNotification = async (req, res) => {
   } catch (error) {
     console.error('Failed to acknowledge guide reservation notification:', error);
     return res.status(500).json({ message: 'Unable to acknowledge notification' });
+  }
+};
+// Return the latest authorized location snapshot for initial load and socket fallback.
+exports.getTrackingSnapshot = async (req, res) => {
+  try {
+    const booking = await Booking.findOne({ _id: req.params.bookingId, customer: req.userId })
+      .select('_id status guide')
+      .populate('guide', 'currentLocation')
+      .lean();
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    const trackingActive = ['accepted', 'arrived', 'in_progress'].includes(booking.status);
+    if (!trackingActive) {
+      return res.json({ bookingId: String(booking._id), status: booking.status, trackingActive: false, location: null });
+    }
+
+    let location = await getBookingLocation(booking._id);
+    let source = 'redis';
+    if (!location && booking.guide?.currentLocation?.updatedAt) {
+      const stored = booking.guide.currentLocation;
+      location = {
+        bookingId: String(booking._id),
+        guideId: String(booking.guide._id),
+        lat: stored.lat,
+        lng: stored.lng,
+        accuracy: stored.accuracy,
+        capturedAt: new Date(stored.updatedAt).getTime(),
+        serverReceivedAt: new Date(stored.updatedAt).getTime(),
+        sequence: 0,
+        quality: stored.accuracy <= 500 ? 'good' : 'degraded',
+      };
+      source = 'mongo_checkpoint';
+    }
+
+    const ageMs = location ? Math.max(0, Date.now() - Number(location.serverReceivedAt || location.capturedAt)) : null;
+    return res.json({
+      bookingId: String(booking._id),
+      status: booking.status,
+      trackingActive: true,
+      source: location ? source : null,
+      stale: ageMs == null || ageMs > 45000,
+      ageMs,
+      location: location || null,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Unable to load live tracking snapshot' });
   }
 };

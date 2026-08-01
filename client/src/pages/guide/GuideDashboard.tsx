@@ -114,6 +114,11 @@ const GuideDashboard = () => {
     return () => window.clearInterval(interval);
   }, [fetchBookings]);
 
+  useEffect(() => {
+    const handleBookingUpdated = () => { void fetchBookings(); };
+    window.addEventListener("wellcare:booking-updated", handleBookingUpdated);
+    return () => window.removeEventListener("wellcare:booking-updated", handleBookingUpdated);
+  }, [fetchBookings]);
   // Re-fetch when GuideLayout signals an acceptance (state.refresh changes)
   useEffect(() => {
     if (location.state?.refresh) {

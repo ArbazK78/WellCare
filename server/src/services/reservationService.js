@@ -3,6 +3,8 @@ const Guide = require('../models/Guide');
 const dispatchService = require('./dispatchService');
 const fareCalculationService = require('./fareCalculationService');
 const notificationService = require('./notificationService');
+const { getGuideLocation } = require('./liveLocationStore');
+const { emitBookingUpdated, endBookingTracking } = require('../realtime/realtimeHub');
 
 const MIN_LEAD_TIME_MS = 30 * 60 * 1000;
 const MAX_ADVANCE_TIME_MS = 90 * 24 * 60 * 60 * 1000;
@@ -190,6 +192,8 @@ const beginFallback = async (booking, now, reason) => {
   booking.dispatchExpiresAt = booking.fulfilmentDeadline;
   booking.reservationAudit.push({ event: reason || 'fallback_started', at: now, actor: 'system', guide: priorGuide || undefined });
   await booking.save();
+  await endBookingTracking(booking._id, 'scheduled_fallback_started');
+  emitBookingUpdated(booking, 'scheduled_fallback_started');
   await notificationService.enqueue({ booking: booking._id, recipientRole: 'customer', recipient: booking.customer, type: 'fallback_started', payload: { reason, scheduledAt: booking.scheduledAt }, dedupeKey: String(booking._id) + ":fallback_started" });
   if (priorGuide) {
     await notificationService.enqueue({ booking: booking._id, recipientRole: 'guide', recipient: priorGuide, type: 'reservation_released_by_system', payload: { reason, scheduledAt: booking.scheduledAt, etaMinutes: booking.guideToPickupEtaMinutes }, dedupeKey: String(booking._id) + ":reservation_released_by_system" });
@@ -198,8 +202,10 @@ const beginFallback = async (booking, now, reason) => {
 };
 
 const getGuidePickupEta = async (guide, booking, now = new Date()) => {
-  const location = guide.currentLocation;
-  if (!location?.updatedAt || now.getTime() - new Date(location.updatedAt).getTime() > 5 * 60 * 1000) return null;
+  const liveLocation = await getGuideLocation(guide._id);
+  const location = liveLocation || guide.currentLocation;
+  const updatedAt = liveLocation?.serverReceivedAt || liveLocation?.capturedAt || location?.updatedAt;
+  if (!updatedAt || now.getTime() - new Date(updatedAt).getTime() > 5 * 60 * 1000) return null;
   if (!Number.isFinite(location.accuracy) || location.accuracy > MAX_LOCATION_ACCURACY_METERS) return null;
   const route = await fareCalculationService.calculateFare({
     pickupLocation: JSON.stringify({ lat: location.lat, lng: location.lng }),
@@ -220,6 +226,7 @@ const activateReservation = async (booking, guideId, etaMinutes, plannedDepartur
     { new: true, runValidators: true },
   );
   if (!activated) return null;
+  emitBookingUpdated(activated, 'reservation_activated');
   await Promise.all([
     notificationService.enqueue({ booking: activated._id, recipientRole: 'guide', recipient: guideId, type: 'departure_required', payload: { scheduledAt: activated.scheduledAt, etaMinutes, plannedDepartureAt }, dedupeKey: `${activated._id}:departure_required` }),
     notificationService.enqueue({ booking: activated._id, recipientRole: 'customer', recipient: activated.customer, type: 'guide_en_route', payload: { scheduledAt: activated.scheduledAt, etaMinutes }, dedupeKey: `${activated._id}:guide_en_route` }),
@@ -236,6 +243,8 @@ const processOneReservation = async (booking, now) => {
     booking.cancelReason = 'We could not secure a Cab guide before the scheduled fulfilment cutoff. No charge was made.';
     booking.reservationAudit.push({ event: 'reservation_unfulfilled', at: now, actor: 'system' });
     await booking.save();
+    await endBookingTracking(booking._id, 'reservation_unfulfilled');
+    emitBookingUpdated(booking, 'reservation_unfulfilled');
     await notificationService.enqueue({ booking: booking._id, recipientRole: 'customer', recipient: booking.customer, type: 'reservation_unfulfilled', payload: { scheduledAt: booking.scheduledAt }, dedupeKey: String(booking._id) + ":reservation_unfulfilled" });
     return;
   }
@@ -245,6 +254,7 @@ const processOneReservation = async (booking, now) => {
     booking.guideCommitmentStatus = 'readiness_required';
     booking.reservationAudit.push({ event: 'readiness_requested', at: now, actor: 'system', guide: booking.guide });
     await booking.save();
+    emitBookingUpdated(booking, 'readiness_requested');
     await notificationService.enqueue({ booking: booking._id, recipientRole: 'guide', recipient: booking.guide, type: 'readiness_required', payload: { scheduledAt: booking.scheduledAt, deadline: booking.readinessDeadline }, dedupeKey: String(booking._id) + ":readiness_required" });
   }
 
