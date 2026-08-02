@@ -20,6 +20,7 @@ api.interceptors.request.use(
     const isGuideEndpoint =
       config.url?.startsWith('/guides') ||
       config.url?.startsWith('/bookings/guide') ||
+      config.url?.startsWith('/ratings/guide') ||
       (config.method === 'put' && /^\/bookings\/[^/]+\/status$/.test(config.url ?? '')) ||
       (config.method === 'post' && /^\/bookings\/[^/]+\/start-trip$/.test(config.url ?? ''));
 

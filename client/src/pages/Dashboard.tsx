@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { CheckCircle2, Clock, MapPin, Calendar, User, Mail, Phone, X, PhoneCall, MessageCircle, AlertCircle, ArrowRight } from "lucide-react";
+import { CheckCircle2, Clock, MapPin, Calendar, User, Mail, Phone, X, PhoneCall, MessageCircle, AlertCircle, ArrowRight, Star, ShieldAlert } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Link, useNavigate } from "react-router-dom";
 import { useBookings } from "@/contexts/BookingContext";
@@ -24,6 +24,7 @@ import api from "@/lib/api";
 import { format, isToday, isTomorrow, parseISO, subMinutes } from "date-fns";
 import { parseLocation } from "@/lib/utils";
 import { useCustomerBookingSync } from "@/hooks/useCustomerBookingSync";
+import { RatingDialog, SafetyConcernDialog } from "@/components/RatingDialog";
 
 // ── Date/time formatters ─────────────────────────────────────────────────────
 const ordinalSuffix = (d: number) => {
@@ -71,7 +72,7 @@ const parseBookingDateTime = (booking: any) => {
 };
 
 const Dashboard = () => {
-  const { bookings, completeBooking, cancelBooking: contextCancelBooking } = useBookings();
+  const { bookings, cancelBooking: contextCancelBooking } = useBookings();
   const { userPhone, userName, userEmail, updateProfile, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -105,6 +106,9 @@ const Dashboard = () => {
   const [isPaying, setIsPaying] = useState(false);
   const [closedPaymentModalId, setClosedPaymentModalId] = useState<string | null>(null);
 
+  const [ratingBooking, setRatingBooking] = useState<any>(null);
+  const [completedDetailsBooking, setCompletedDetailsBooking] = useState<any>(null);
+  const [safetyBooking, setSafetyBooking] = useState<any>(null);
   const paymentBooking = useMemo(() => {
     return localBookings.find((b: any) => 
       b.status === "completed" && 
@@ -138,6 +142,10 @@ const Dashboard = () => {
             });
             toast({ title: "Payment Successful", description: `Payment done to ${(paymentBooking.guide as any)?.name || 'Guide'}` });
             setClosedPaymentModalId(paymentBooking._id);
+            setLocalBookings((current: any[]) => current.map((booking: any) => booking._id === paymentBooking._id
+              ? { ...booking, paymentStatus: "paid", customerReviewStatus: "pending" }
+              : booking));
+            setRatingBooking({ ...paymentBooking, paymentStatus: "paid", customerReviewStatus: "pending" });
           } catch (err) {
             toast({ title: "Verification Failed", description: "Payment verification failed.", variant: "destructive" });
           } finally {
@@ -495,7 +503,7 @@ const Dashboard = () => {
                                       <div>
                                         <h3 className="font-medium">{booking.guide.name}</h3>
                                         <div className="flex items-center text-yellow-500">
-                                          <span>{booking.guide.rating}</span>
+                                          <span>{booking.guide.ratingSummary?.average ? booking.guide.ratingSummary.average.toFixed(1) : "New"}</span>
                                           <span className="ml-1">★</span>
                                         </div>
                                       </div>
@@ -728,7 +736,7 @@ const Dashboard = () => {
                                   <div>
                                     <h3 className="font-medium">{booking.guide?.name}</h3>
                                     <div className="flex items-center text-yellow-500">
-                                      <span>{booking.guide?.rating}</span>
+                                      <span>{booking.guide?.ratingSummary?.average ? booking.guide.ratingSummary.average.toFixed(1) : "New"}</span>
                                       <span className="ml-1">★</span>
                                     </div>
                                   </div>
@@ -771,7 +779,8 @@ const Dashboard = () => {
                                   <span>Completed</span>
                                 </div>
                               </div>
-                              <div className="md:w-1/4 mt-4 md:mt-0 flex md:justify-end items-center">
+                              <div className="md:w-1/4 mt-4 md:mt-0 flex flex-wrap md:justify-end items-center gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setCompletedDetailsBooking(booking)}>View details</Button>
                                 <Button variant="outline" size="sm" asChild>
                                   <Link to="/book">Book Again</Link>
                                 </Button>
@@ -830,7 +839,7 @@ const Dashboard = () => {
                         </div>
                         <div className="bg-white rounded-lg p-4 text-center border shadow-sm">
                           <div className="text-2xl font-bold text-blue-600">
-                            {(user as any)?.rating ? (user as any).rating.toFixed(1) : "5.0"}
+                            {(user as any)?.ratingSummary?.average ? (user as any).ratingSummary.average.toFixed(1) : "New"}
                           </div>
                           <div className="text-xs text-muted-foreground uppercase font-medium mt-1">Rating</div>
                         </div>
@@ -1073,8 +1082,79 @@ const Dashboard = () => {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!completedDetailsBooking} onOpenChange={(open) => !open && setCompletedDetailsBooking(null)}>
+        <DialogContent className="border-border bg-background sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Completed booking details</DialogTitle>
+            <DialogDescription>Booking #{completedDetailsBooking?._id?.slice(-6)}</DialogDescription>
+          </DialogHeader>
+          {completedDetailsBooking && (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <div className="flex items-start gap-3">
+                  <MapPin className="mt-1 h-5 w-5 text-primary" />
+                  <div>
+                    <p className="font-bold">{parseLocation(completedDetailsBooking.pickupLocation || completedDetailsBooking.location).name}</p>
+                    <p className="text-sm text-muted-foreground">to {parseLocation(completedDetailsBooking.destinationAddress).name}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-border bg-card p-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Guide</p>
+                  <p className="font-bold">{completedDetailsBooking.guide?.name || "WellCare guide"}</p>
+                </div>
+                <p className="text-xl font-bold">{"\u20B9"}{completedDetailsBooking.totalFare || 0}</p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                {completedDetailsBooking.customerReviewStatus === "pending" && (
+                  <Button className="flex-1" onClick={() => {
+                    setRatingBooking(completedDetailsBooking);
+                    setCompletedDetailsBooking(null);
+                  }}>
+                    <Star className="mr-2 h-4 w-4" /> Rate guide
+                  </Button>
+                )}
+                <Button variant="outline" className="flex-1" onClick={() => {
+                  setSafetyBooking(completedDetailsBooking);
+                  setCompletedDetailsBooking(null);
+                }}>
+                  <ShieldAlert className="mr-2 h-4 w-4" /> Safety concern
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <RatingDialog
+        open={!!ratingBooking}
+        bookingId={ratingBooking?._id}
+        subjectName={ratingBooking?.guide?.name}
+        direction="customer_to_guide"
+        onOpenChange={(open) => !open && setRatingBooking(null)}
+        onSafetyConcern={() => {
+          setSafetyBooking(ratingBooking);
+          setRatingBooking(null);
+        }}
+        onSubmitted={() => {
+          if (!ratingBooking) return;
+          setLocalBookings((current: any[]) => current.map((booking: any) => booking._id === ratingBooking._id
+            ? { ...booking, customerReviewStatus: "submitted" }
+            : booking));
+          setRatingBooking(null);
+        }}
+      />
+
+      <SafetyConcernDialog
+        open={!!safetyBooking}
+        bookingId={safetyBooking?._id}
+        onOpenChange={(open) => !open && setSafetyBooking(null)}
+      />
+
+
       {/* Payment Success Modal */}
-      <Dialog open={!!paymentBooking} onOpenChange={(open) => !open && setPaymentBooking(null)}>
+      <Dialog open={!!paymentBooking} onOpenChange={(open) => !open && paymentBooking && setClosedPaymentModalId(paymentBooking._id)}>
         <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-[#1e1e1e] border-0 rounded-2xl">
           <div className="bg-green-500 p-8 flex flex-col items-center text-center">
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-4">

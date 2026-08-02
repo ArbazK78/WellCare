@@ -3,11 +3,19 @@ import api from "@/lib/api";
 import { useAuth } from "./AuthContext"; // Import useAuth
 
 
+export type RatingSummary = {
+  average: number | null;
+  count: number;
+  isVisible?: boolean;
+  minimumRequired?: number;
+};
+
 export type Guide = {
   _id: number | string;
   name: string;
   image: string;
   rating: number;
+  ratingSummary?: RatingSummary;
   currentLocation?: {
     lat: number;
     lng: number;
@@ -62,6 +70,11 @@ export type Booking = {
   durationMin?: number;
   totalFare?: number;
   rejectionReason?: string;
+  paymentStatus?: "pending" | "paid" | "failed";
+  customerReviewStatus?: "pending" | "submitted" | "unavailable";
+  guideReviewStatus?: "pending" | "submitted";
+  customerRatingPromptDismissedAt?: string | null;
+  guideRatingPromptDismissedAt?: string | null;
 };
 
 

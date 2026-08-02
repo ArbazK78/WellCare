@@ -14,6 +14,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import api from "@/lib/api";
 import { format, isToday, isTomorrow } from "date-fns";
 import { parseLocation } from "@/lib/utils";
+import { RatingDialog } from "@/components/RatingDialog";
 import ActiveRideView from "@/components/ActiveRideView";
 
 // ── Date / time formatters (consistent with customer Dashboard) ─────────────
@@ -59,6 +60,7 @@ const GuideDashboard = () => {
   const [reservationOpportunities, setReservationOpportunities] = useState<Booking[]>([]);
   const [mySchedule, setMySchedule] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ratingBooking, setRatingBooking] = useState<Booking | null>(null);
 
 
   // Get initials from name for avatar
@@ -294,12 +296,14 @@ const GuideDashboard = () => {
 
   const handleCompleteTrip = async (bookingId: string) => {
     try {
+      const bookingToRate = bookings.find((booking) => booking._id === bookingId) || null;
       const token = localStorage.getItem('guide_token');
       const response = await api.put(`/bookings/${bookingId}/status`, 
         { status: 'completed' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setBookings(prev => prev.map(b => b._id === bookingId ? response.data.booking : b));
+      if (bookingToRate) setRatingBooking({ ...bookingToRate, ...response.data.booking, guideReviewStatus: "pending" });
       toast({
         title: "Trip Completed",
         description: "The trip has been successfully marked as completed.",
@@ -467,6 +471,16 @@ const GuideDashboard = () => {
               <Check className="h-5 w-5 inline mr-1" /> Completed
             </div>
           )}
+          {!isPending && !isAccepted && booking.guideReviewStatus === "pending" && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full rounded-xl"
+              onClick={() => setRatingBooking(booking)}
+            >
+              <Star className="mr-2 h-4 w-4" /> Rate customer privately
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -528,7 +542,7 @@ const GuideDashboard = () => {
                     <CardTitle className="text-2xl">{currentGuide.name}</CardTitle>
                     <CardDescription className="flex items-center mt-1">
                       <Star className="h-4 w-4 text-yellow-500 mr-1" />
-                      {currentGuide.rating || "No ratings yet"}
+                      {currentGuide.ratingSummary?.average ? `${currentGuide.ratingSummary.average.toFixed(1)} - ${currentGuide.ratingSummary.count} ratings` : "New - rating appears after 5 reviews"}
                     </CardDescription>
                   </div>
                 </div>
@@ -699,6 +713,20 @@ const GuideDashboard = () => {
 
       </div>
 
+        <RatingDialog
+          open={!!ratingBooking}
+          bookingId={ratingBooking?._id}
+          subjectName={ratingBooking?.name || ratingBooking?.customer?.name || "the customer"}
+          direction="guide_to_customer"
+          onOpenChange={(open) => !open && setRatingBooking(null)}
+          onSubmitted={() => {
+            if (!ratingBooking) return;
+            setBookings((current) => current.map((booking) => booking._id === ratingBooking._id
+              ? { ...booking, guideReviewStatus: "submitted" }
+              : booking));
+            setRatingBooking(null);
+          }}
+        />
     </div>
   );
 };

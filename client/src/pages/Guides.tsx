@@ -57,7 +57,7 @@ const Guides = () => {
     id: guide._id || guide.id,
     name: guide.name,
     image: guide.image || "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=300&h=300&fit=crop&auto=format&q=80",
-    rating: guide.rating || 5.0,
+    rating: guide.ratingSummary?.average ? guide.ratingSummary.average.toFixed(1) : "New",
     yearsExperience: guide.experience ? parseInt(guide.experience) : 1,
     location: guide.location || "Ahmedabad",
     specialties: guide.specialties && guide.specialties.length > 0

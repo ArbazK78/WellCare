@@ -15,6 +15,10 @@ export type Guide = {
   experience?: string;
   languages?: string[];
   specialties?: string[];
+  ratingSummary?: {
+    average: number | null;
+    count: number;
+  };
   vehicleType?: ('scooter' | 'cab')[];
   rating?: number;
   isOnline?: boolean;

@@ -191,6 +191,8 @@ const BookingSchema = new mongoose.Schema({
     enum: ['pending', 'paid'],
     default: 'pending',
   },
+  customerRatingPromptDismissedAt: { type: Date, default: null },
+  guideRatingPromptDismissedAt: { type: Date, default: null },
 });
 
 BookingSchema.index(

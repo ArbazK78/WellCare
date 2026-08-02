@@ -79,6 +79,7 @@ const safeGuide = (guide) => ({
   bio: guide.bio,
   image: guide.image,
   rating: guide.rating,
+  ratingSummary: guide.ratingSummary,
   languages: guide.languages,
   vehicleType: guide.vehicleType,
 });

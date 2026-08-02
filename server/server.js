@@ -60,6 +60,7 @@ const userRoutes = require('./src/routes/userRoutes');
 const bookingRoutes = require('./src/routes/bookingRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
+const ratingRoutes = require('./src/routes/ratingRoutes');
 
 // BM-10 fix: Validate MongoDB ObjectId format for common params to prevent CastError -> 500
 const { Types: { ObjectId } } = mongoose;
@@ -78,6 +79,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/ratings', ratingRoutes);
 
 
 const dispatchService = require('./src/services/dispatchService');

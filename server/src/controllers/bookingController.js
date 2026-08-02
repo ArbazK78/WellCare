@@ -10,6 +10,7 @@ const fareCalculationService = require('../services/fareCalculationService');
 const medicalPlaceService = require('../services/medicalPlaceService');
 const bookingPartyService = require('../services/bookingPartyService');
 const notificationService = require('../services/notificationService');
+const ratingService = require('../services/ratingService');
 const { getBookingLocation } = require('../services/liveLocationStore');
 const { emitBookingUpdated, endBookingTracking } = require('../realtime/realtimeHub');
 const NotificationEvent = require('../models/NotificationEvent');
@@ -213,10 +214,23 @@ exports.estimateFare = async (req, res) => {
 exports.getUserBookings = async (req, res) => {
   try {
     const bookings = await Booking.find({ customer: req.userId })
-      .populate('guide', 'name image rating phone currentLocation') // phone included for Contact Guide
+      .populate('guide', 'name image rating ratingSummary phone currentLocation')
       .sort({ createdAt: -1 });
 
-    res.json(bookings);
+    const reviewed = await ratingService.getReviewedBookingIds(
+      bookings.map((booking) => booking._id),
+      'customer_to_guide',
+    );
+    res.json(bookings.map((booking) => {
+      const value = booking.toObject();
+      const isEligible = booking.status === 'completed' && booking.paymentStatus === 'paid' && booking.guide;
+      return {
+        ...value,
+        customerReviewStatus: reviewed.has(booking._id.toString())
+          ? 'submitted'
+          : isEligible ? 'pending' : 'unavailable',
+      };
+    }));
   } catch (error) {
     console.error('❌ Failed to fetch bookings:', error);
     res.status(500).json({ message: 'Server error while fetching bookings' });
@@ -562,7 +576,16 @@ exports.getGuideCompletedBookings = async (req, res) => {
       .sort({ createdAt: -1 });
 
     console.log(`✅ Found ${completedBookings.length} completed booking(s) for guide ${guideId}`);
-    res.json(completedBookings);
+    const reviewed = await ratingService.getReviewedBookingIds(
+      completedBookings.map((booking) => booking._id),
+      'guide_to_customer',
+    );
+    res.json(completedBookings.map((booking) => ({
+      ...booking.toObject(),
+      guideReviewStatus: reviewed.has(booking._id.toString())
+        ? 'submitted'
+        : 'pending',
+    })));
   } catch (error) {
     console.error('❌ Error fetching guide completed bookings:', error);
     res.status(500).json({ message: 'Error fetching completed bookings' });
@@ -575,7 +598,7 @@ exports.getGuideCompletedBookings = async (req, res) => {
 exports.getBookingById = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.bookingId)
-      .populate('guide', 'name image rating phone currentLocation')
+      .populate('guide', 'name image rating ratingSummary phone currentLocation')
       .populate('customer', 'name phone email');
 
     if (!booking) {

@@ -26,7 +26,23 @@ const guideSchema = new mongoose.Schema({
     type: String,
   },
 
+  // Kept temporarily for backwards compatibility with older clients.
   rating: { type: Number, default: 0 },
+  ratingSummary: {
+    average: { type: Number, min: 1, max: 5, default: null },
+    rawAverage: { type: Number, min: 1, max: 5, default: null, select: false },
+    count: { type: Number, min: 0, default: 0 },
+    ratingSum: { type: Number, min: 0, default: 0, select: false },
+    distribution: {
+      1: { type: Number, min: 0, default: 0, select: false },
+      2: { type: Number, min: 0, default: 0, select: false },
+      3: { type: Number, min: 0, default: 0, select: false },
+      4: { type: Number, min: 0, default: 0, select: false },
+      5: { type: Number, min: 0, default: 0, select: false },
+    },
+    policyVersion: { type: Number, default: 1 },
+    updatedAt: { type: Date, default: null },
+  },
   status: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],
